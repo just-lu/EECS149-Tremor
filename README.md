@@ -1,0 +1,2 @@
+# EECS149-Tremor
+Among men and women aged 50-89 years old, approximately 28% are affected by movement disorders, of which 14.5% are characterized by tremors. Causes of this condition range from genetics to unknown causes, as is the case for essential tremors, which ultimately contributes to a lack of effective treatment options available. Considering this, the goal of the project is to produce a palliative care option, in the form of a mechanical embedded system, that can effectively subdue hand tremors.
