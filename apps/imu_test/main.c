@@ -11,51 +11,70 @@
 #include "nrf_log_default_backends.h"
 #include "nrf_pwr_mgmt.h"
 #include "nrf_serial.h"
+#include "nrf_twi_mngr.h"
 #include "nrfx_gpiote.h"
-#include "nrfx_saadc.h"
-#include "nrfx_twim.h"
 
 #include "buckler.h"
 #include "bno055.h"
-
-// ADC channels
-#define X_CHANNEL 0
-#define Y_CHANNEL 1
-#define Z_CHANNEL 2
 
 // I2C manager
 NRF_TWI_MNGR_DEF(twi_mngr_instance, 5, 0);
 
 int main(void) {
+  ret_code_t error_code = NRF_SUCCESS;
+
+  // initialize RTT library
+  error_code = NRF_LOG_INIT(NULL);
+  APP_ERROR_CHECK(error_code);
+  NRF_LOG_DEFAULT_BACKENDS_INIT();
+  printf("Log initialized\n");
+
+  // initialize i2c master (two wire interface)
+  nrf_drv_twi_config_t i2c_config = NRF_DRV_TWI_DEFAULT_CONFIG;
+  i2c_config.scl = BUCKLER_SENSORS_SCL;
+  i2c_config.sda = BUCKLER_SENSORS_SDA;
+  i2c_config.frequency = NRF_TWIM_FREQ_100K;
+  error_code = nrf_twi_mngr_init(&twi_mngr_instance, &i2c_config);
+  APP_ERROR_CHECK(error_code);
 
   // initialize MPU-9250 driver
-  mpu9250_init(&twi_mngr_instance);
+  bno055_init(&twi_mngr_instance);
   printf("BNO055 initialized\n");
 
   // loop forever
-  int loop_index = 0;
+  float x_rot = 0;
+  float y_rot = 0;
+  float z_rot = 0;
 
   while (1) {
-
-    // sample analog inputs
-    nrf_saadc_value_t x_val = sample_value(X_CHANNEL);
-    nrf_saadc_value_t y_val = sample_value(Y_CHANNEL);
-    nrf_saadc_value_t z_val = sample_value(Z_CHANNEL);
-
-    // get imu measurements
+    // get measurements
     bno055_measurement_t acc_measurement = bno055_read_accelerometer();
-    bno055_measurement_t gyro_measurement = bno055_read_gyro();
+    bno055_measurement_t gyr_measurement = bno055_read_gyro();
+
+    // determine rotation from gyro
+    // gyros are messy, so only add value if it is of significant magnitude
+    // note that we are dividing by 10 since we are measuring over a tenth of a second
+    float x_rot_amount = gyr_measurement.x_axis/10;
+    if (abs(x_rot_amount) > 0.5) {
+      x_rot += x_rot_amount;
+    }
+    float y_rot_amount = gyr_measurement.y_axis/10;
+    if (abs(y_rot_amount) > 0.5) {
+      y_rot += y_rot_amount;
+    }
+    float z_rot_amount = gyr_measurement.z_axis/10;
+    if (abs(z_rot_amount) > 0.5) {
+      z_rot += z_rot_amount;
+    }
 
     // print results
-    printf("                        X-Axis\t    Y-Axis\t    Z-Axis\n");
-    printf("                    ----------\t----------\t----------\n");
-    printf("Analog Accel (raw): %10d\t%10d\t%10d\n", x_val, y_val, z_val);
-    printf("I2C IMU Accel (g):  %10.3f\t%10.3f\t%10.3f\n", acc_measurement.x_axis, acc_measurement.y_axis, acc_measurement.z_axis);
+    printf("                      X-Axis\t    Y-Axis\t    Z-Axis\n");
+    printf("                  ----------\t----------\t----------\n");
+    printf("I2C IMU Acc (g): %10.3f\t%10.3f\t%10.3f\n", acc_measurement.x_axis, acc_measurement.y_axis, acc_measurement.z_axis);
     printf("I2C IMU Gyro (g):  %10.3f\t%10.3f\t%10.3f\n", gyro_measurement.x_axis, gyro_measurement.y_axis, gyro_measurement.z_axis);
+    printf("Angle  (degrees): %10.3f\t%10.3f\t%10.3f\n", x_rot, y_rot, z_rot);
     printf("\n");
 
-    // wait before continuing loop
-    loop_index++;
-    nrf_delay_ms(500);
+    nrf_delay_ms(100);
   }
 }
