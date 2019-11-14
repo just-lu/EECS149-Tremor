@@ -18,8 +18,8 @@ int main(void) {
 
   // Enter main loop.
   while (1) {
-    nrf_gpio_pin_clear(LED);
-    // nrf_gpio_pin_toggle(LED);
-    // nrf_delay_ms(500);
+    // nrf_gpio_pin_set(LED);
+    nrf_gpio_pin_toggle(LED);
+    nrf_delay_ms(500);
   }
 }
