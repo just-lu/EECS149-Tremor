@@ -105,7 +105,7 @@ int main (void) {
   APP_ERROR_CHECK(err_code);
   app_pwm_enable(&PWM1);
 
-  uint8_t servo_pos_max = 8;
+  uint8_t servo_pos_max = 6.75;
   uint8_t servo_pos_min = 6.5;
 
   // loop forever
@@ -134,8 +134,8 @@ int main (void) {
     /* Set the duty cycle - keep trying until PWM is ready... */
     while (app_pwm_channel_duty_set(&PWM1, 0, servo_pos_max) == NRF_ERROR_BUSY);
     nrf_delay_ms(500);
-    while (app_pwm_channel_duty_set(&PWM1, 0, servo_pos_min) == NRF_ERROR_BUSY);
-    nrf_delay_ms(500);
+    // while (app_pwm_channel_duty_set(&PWM1, 0, servo_pos_min) == NRF_ERROR_BUSY);
+    // nrf_delay_ms(500);
   }
 }
 
