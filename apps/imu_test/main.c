@@ -71,7 +71,7 @@ int main(void) {
     printf("                      X-Axis\t    Y-Axis\t    Z-Axis\n");
     printf("                  ----------\t----------\t----------\n");
     printf("I2C IMU Acc (g): %10.3f\t%10.3f\t%10.3f\n", acc_measurement.x_axis, acc_measurement.y_axis, acc_measurement.z_axis);
-    printf("I2C IMU Gyro (g):  %10.3f\t%10.3f\t%10.3f\n", gyro_measurement.x_axis, gyro_measurement.y_axis, gyro_measurement.z_axis);
+    printf("I2C IMU Gyro (g):  %10.3f\t%10.3f\t%10.3f\n", gyr_measurement.x_axis, gyr_measurement.y_axis, gyr_measurement.z_axis);
     printf("Angle  (degrees): %10.3f\t%10.3f\t%10.3f\n", x_rot, y_rot, z_rot);
     printf("\n");
 
