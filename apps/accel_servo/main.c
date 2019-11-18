@@ -105,8 +105,10 @@ int main (void) {
   APP_ERROR_CHECK(err_code);
   app_pwm_enable(&PWM1);
 
-  uint8_t servo_pos_max = 6.75;
-  uint8_t servo_pos_min = 6.5;
+  uint8_t servo_pos_max = 10;
+  uint8_t servo_pos_min = 5;
+  uint8_t servo_stop = 0;
+  uint8_t speed = 0;
 
   // loop forever
   while (1) {
@@ -131,8 +133,16 @@ int main (void) {
     printf("tilt-theta: %f\ttilt-psi: %f\ttilt-phi:%f\n", theta, psi, phi);
     //nrf_delay_ms(100);
 
+    if (psi > .25) {
+      speed = servo_pos_max;
+    } else if (psi < -0.25) {
+      speed = servo_pos_min;
+    } else {
+      speed = servo_stop;
+    }
+
     /* Set the duty cycle - keep trying until PWM is ready... */
-    while (app_pwm_channel_duty_set(&PWM1, 0, servo_pos_max) == NRF_ERROR_BUSY);
+    while (app_pwm_channel_duty_set(&PWM1, 0, speed) == NRF_ERROR_BUSY);
     nrf_delay_ms(500);
     // while (app_pwm_channel_duty_set(&PWM1, 0, servo_pos_min) == NRF_ERROR_BUSY);
     // nrf_delay_ms(500);

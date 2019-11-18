@@ -85,17 +85,26 @@ int main(void)
     app_pwm_enable(&PWM1);
 
     uint8_t servo_pos_max = 10;
-    uint8_t servo_pos_min = 6.5;
+    uint8_t servo_pos_min = 5;
+    uint8_t servo_stop = 0;
     while (true)
     {
         /* Set the duty cycle - keep trying until PWM is ready... */
         while (app_pwm_channel_duty_set(&PWM1, 0, servo_pos_max) == NRF_ERROR_BUSY);
 
-        // nrf_delay_ms(100);
+        nrf_delay_ms(1000);
 
-        // while (app_pwm_channel_duty_set(&PWM1, 0, servo_pos_min) == NRF_ERROR_BUSY);
+        while (app_pwm_channel_duty_set(&PWM1, 0, servo_stop) == NRF_ERROR_BUSY);
 
-        // nrf_delay_ms(100);
+        nrf_delay_ms(1000);
+
+        while (app_pwm_channel_duty_set(&PWM1, 0, servo_pos_min) == NRF_ERROR_BUSY);
+
+        nrf_delay_ms(1000);
+
+        while (app_pwm_channel_duty_set(&PWM1, 0, servo_stop) == NRF_ERROR_BUSY);
+
+        nrf_delay_ms(1000);
     }
 
 }
