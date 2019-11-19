@@ -110,21 +110,36 @@ int main (void) {
   uint8_t servo_stop = 0;
   uint8_t speed = 0;
 
+  float x_val, y_val, z_val, x_val_g, y_val_g, z_val_g;
+  float theta_prev, psi_prev, phi_prev, theta, psi, phi, theta_diff, psi_diff, phi_diff;
+    theta_prev = atan2 (x_val_g, sqrt ((y_val_g * y_val_g) * (z_val_g * z_val_g)));
+    psi_prev   = atan2 (y_val_g, sqrt ((x_val_g * x_val_g) * (z_val_g * z_val_g)));
+    phi_prev   = atan2 (sqrt ((x_val_g * x_val_g) * (y_val_g * y_val_g)), z_val_g);
+
   // loop forever
   while (1) {
     // sample analog inputs
-    float x_val = sample_value(X_CHANNEL) * (3.6 / (float) (1 << 12));
-    float y_val = sample_value(Y_CHANNEL) * (3.6 / (float) (1 << 12));
-    float z_val = sample_value(Z_CHANNEL) * (3.6 / (float) (1 << 12));
+    x_val = sample_value(X_CHANNEL) * (3.6 / (float) (1 << 12));
+    y_val = sample_value(Y_CHANNEL) * (3.6 / (float) (1 << 12));
+    z_val = sample_value(Z_CHANNEL) * (3.6 / (float) (1 << 12));
 
-    float x_val_g = (x_val - (2.85 / 2)) / ((2.85 / 3) * .420);
-    float y_val_g = (y_val - (2.85 / 2)) / ((2.85 / 3) * .420);
-    float z_val_g = (z_val - (2.85 / 2)) / ((2.85 / 3) * .420);
+    x_val_g = (x_val - (2.85 / 2)) / ((2.85 / 3) * .420);
+    y_val_g = (y_val - (2.85 / 2)) / ((2.85 / 3) * .420);
+    z_val_g = (z_val - (2.85 / 2)) / ((2.85 / 3) * .420);
 
 
-    float theta = atan2 (x_val_g, sqrt ((y_val_g * y_val_g) * (z_val_g * z_val_g)));
-    float psi   = atan2 (y_val_g, sqrt ((x_val_g * x_val_g) * (z_val_g * z_val_g)));
-    float phi   = atan2 (sqrt ((x_val_g * x_val_g) * (y_val_g * y_val_g)), z_val_g);
+    theta = atan2 (x_val_g, sqrt ((y_val_g * y_val_g) * (z_val_g * z_val_g)));
+    psi   = atan2 (y_val_g, sqrt ((x_val_g * x_val_g) * (z_val_g * z_val_g)));
+    phi   = atan2 (sqrt ((x_val_g * x_val_g) * (y_val_g * y_val_g)), z_val_g);
+
+    theta_diff = theta - theta_prev;
+    psi_diff   = psi - psi_prev;
+    phi_diff   = phi - phi_prev;
+
+    theta_prev = theta;
+    psi_prev   = psi;
+    phi_prev   = phi;
+
     // display results
     // printf("Voltage x: %f\tVoltage y: %f\tVoltage z:%f\n", x_val, y_val, z_val);
     // nrf_delay_ms(100);
@@ -133,9 +148,9 @@ int main (void) {
     printf("tilt-theta: %f\ttilt-psi: %f\ttilt-phi:%f\n", theta, psi, phi);
     //nrf_delay_ms(100);
 
-    if (psi > .25) {
+    if (psi_diff > .35) {
       speed = servo_pos_max;
-    } else if (psi < -0.25) {
+    } else if (psi_diff < -0.35) {
       speed = servo_pos_min;
     } else {
       speed = servo_stop;
@@ -143,7 +158,7 @@ int main (void) {
 
     /* Set the duty cycle - keep trying until PWM is ready... */
     while (app_pwm_channel_duty_set(&PWM1, 0, speed) == NRF_ERROR_BUSY);
-    nrf_delay_ms(500);
+    nrf_delay_ms(50);
     // while (app_pwm_channel_duty_set(&PWM1, 0, servo_pos_min) == NRF_ERROR_BUSY);
     // nrf_delay_ms(500);
   }
