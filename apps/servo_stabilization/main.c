@@ -100,25 +100,19 @@ int main(void) {
   // while (app_pwm_channel_duty_set(&PWM2, 0, servo_pos_min) == NRF_ERROR_BUSY);
   // nrf_delay_ms(100);
 
-  // while (app_pwm_channel_duty_set(&PWM2, 0, servo_pos_angle_45) == NRF_ERROR_BUSY);
-  // nrf_delay_ms(100);
-
-  // while (app_pwm_channel_duty_set(&PWM2, 0, servo_pos_angle_90) == NRF_ERROR_BUSY);
-  // nrf_delay_ms(100);
-
-  // while (app_pwm_channel_duty_set(&PWM2, 0, servo_pos_angle_135) == NRF_ERROR_BUSY);
-  // nrf_delay_ms(100);
-
-  // while (app_pwm_channel_duty_set(&PWM2, 0, servo_pos_max) == NRF_ERROR_BUSY);
-  // nrf_delay_ms(100);
-
-
   // loop forever
   float x_rot = 0;
   float y_rot = 0;
   float z_rot = 0;
 
+  float initial_z = 100.0;
+  float prev_z = 100.0;
+
+  float output;
+  int input, input_start, input_end, output_start, output_end;
+
   int loop_index = 0;
+  int recalibration_count = 0;
   while (1) {
     // blink two LEDs
     nrf_gpio_pin_toggle(LEDS[loop_index%2]);
@@ -151,35 +145,55 @@ int main(void) {
     printf("Angle  (degrees): %10.3f\t%10.3f\t%10.3f\n", x_rot, y_rot, z_rot);
     printf("\n");
 
-    // mapping
-    int input_start = 60;
-    int input_end = -60;
-
-    int output_start = 2;
-    int output_end = 20;
-
-
-    float input = gyr_measurement.z_axis;
-
-    if (input < -60) {
-      input = 60;
-    } else if (input > 60) {
-      input = 60;
+    if (loop_index <= 5) {
+      initial_z = z_rot;
+      prev_z = z_rot;
     }
 
-    int output;
+    if (prev_z != 100.0 && fabsf(prev_z - z_rot) < 0.1) {
+      recalibration_count += 1;
+    }
 
-    double slope = 1.0 * (output_end - output_start)/(input_end - input_start);
-    output = output_start + round(slope * (input - input_start));
+    if (recalibration_count == 10) {
+      initial_z = z_rot;
+      recalibration_count = 0;
+    }
 
+    if (initial_z != 100.0) {
+      if (z_rot - initial_z > 40.0) { //cw
+        output = 10.0;
+      } else if (initial_z - z_rot > 40.0) { //ccw
+        output = 6.0;
+      } else if (z_rot - initial_z > 3.0) { //cw
+        input = z_rot - initial_z;
+        input_start = 3;
+        input_end = 40;
+        output_start = 9;
+        output_end = 10;
+        float slope = 1.0 * (output_end - output_start)/(input_end - input_start);
+        output = output_start + slope * (input - input_start);
+      } else if (initial_z - z_rot > 3.0) { //ccw
+        input = initial_z - z_rot;
+        input_start = 3;
+        input_end = 40;
+        output_start = 6;
+        output_end = 8;
+        float slope = 1.0 * (output_end - output_start)/(input_end - input_start);
+        output = output_end - slope * (input - input_start);
+      } 
+      else {
+        output = 0.0;
+      }
+    } else {
+      output = 0.0;
+    }
 
-    /* Set the duty cycle - keep trying until PWM is ready... */
-    // while (app_pwm_channel_duty_set(&PWM2, 0, output) == NRF_ERROR_BUSY);
-    // nrf_delay_ms(100);
+    printf("Mapping: %10.3f\t\n", output);
 
-    while (app_pwm_channel_duty_set(&PWM2, 0, 8) == NRF_ERROR_BUSY);
+    while (app_pwm_channel_duty_set(&PWM2, 0, output) == NRF_ERROR_BUSY);
     nrf_delay_ms(100);
 
+    prev_z = z_rot;
     loop_index++;
 
     // if (loop_index >= 30) {
