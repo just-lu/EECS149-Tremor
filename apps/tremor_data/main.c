@@ -18,6 +18,7 @@
 #include "nrf_serial.h"
 #include "nrfx_gpiote.h"
 #include "nrfx_saadc.h"
+#include "simple_logger.h"
 
 #include "buckler.h"
 
@@ -29,14 +30,6 @@
 #define Y_CHANNEL 1
 #define Z_CHANNEL 2
 
-APP_PWM_INSTANCE(PWM1,1);                   // Create the instance "PWM1" using TIMER1.
-
-static volatile bool ready_flag;            // A flag indicating PWM status.
-
-void pwm_ready_callback(uint32_t pwm_id)    // PWM callback function
-{
-    ready_flag = true;
-}
 
 // callback for SAADC events
 void saadc_callback (nrfx_saadc_evt_t const * p_event) {
@@ -89,35 +82,26 @@ int main (void) {
   // initialization complete
   printf("Buckler initialized!\n");
 
+  // initialize logger
+  printf("%d", simple_logger_init("filename.txt", "w"));
+  // simple_logger_update();
+  simple_logger_log_header("%s,%s,%s\n","theta", "psi", "phi");
+
+  // initialization complete
+  printf("Buckler initialized after logger!\n");
+
   ret_code_t err_code;
-
-  // initializing servo pin number
-  uint8_t SERVO_PIN = 4;
-
-  /* 1-channel PWM, 50Hz, output on DK LED pins, 20ms period */
-  app_pwm_config_t pwm1_cfg = APP_PWM_DEFAULT_CONFIG_1CH(20000L, SERVO_PIN);
-
-  /* Switch the polarity of the first channel. */
-  pwm1_cfg.pin_polarity[0] = APP_PWM_POLARITY_ACTIVE_HIGH;
-
-  /* Initialize and enable PWM. */
-  err_code = app_pwm_init(&PWM1,&pwm1_cfg,NULL);
-  APP_ERROR_CHECK(err_code);
-  app_pwm_enable(&PWM1);
-
-  uint8_t servo_pos_max = 10;
-  uint8_t servo_pos_min = 5;
-  uint8_t servo_stop = 0;
-  uint8_t speed = 0;
 
   float x_val, y_val, z_val, x_val_g, y_val_g, z_val_g;
   float theta_prev, psi_prev, phi_prev, theta, psi, phi, theta_diff, psi_diff, phi_diff;
-    theta_prev = atan2 (x_val_g, sqrt ((y_val_g * y_val_g) * (z_val_g * z_val_g)));
-    psi_prev   = atan2 (y_val_g, sqrt ((x_val_g * x_val_g) * (z_val_g * z_val_g)));
-    phi_prev   = atan2 (sqrt ((x_val_g * x_val_g) * (y_val_g * y_val_g)), z_val_g);
+  theta_prev = 0;
+  psi_prev   = 0;
+  phi_prev   = 0;
+
+  int data_num = 0;
 
   // loop forever
-  while (1) {
+  while (data_num<100) {
     // sample analog inputs
     x_val = sample_value(X_CHANNEL) * (3.6 / (float) (1 << 12));
     y_val = sample_value(Y_CHANNEL) * (3.6 / (float) (1 << 12));
@@ -140,33 +124,19 @@ int main (void) {
     psi_prev   = psi;
     phi_prev   = phi;
 
-    // display results
-    // printf("Voltage x: %f\tVoltage y: %f\tVoltage z:%f\n", x_val, y_val, z_val);
-    // nrf_delay_ms(100);
-    // printf("g-force x: %f\tg-force y: %f\tg-force z:%f\n", x_val_g, y_val_g, z_val_g);
-    // nrf_delay_ms(100);
-
-    float mybuffer[32];
-
-    sprintf (mybuffer, "%f;%f;%f\n", theta, psi, phi);
-    SEGGER_RTT_WriteString(0, mybuffer);
-    nrf_delay_ms(100);
+    // log data
+    simple_logger_log("%f,%f,%f\n",theta, psi, phi);
     printf("tilt-theta: %f\ttilt-psi: %f\ttilt-phi:%f\n", theta, psi, phi);
+
+    // using sprintf
+    // float mybuffer[32];
+    // sprintf (mybuffer, "%f;%f;%f\n", theta, psi, phi);
+    // SEGGER_RTT_WriteString(0, mybuffer);
+    // nrf_delay_ms(100);
+    // printf("tilt-theta: %f\ttilt-psi: %f\ttilt-phi:%f\n", theta, psi, phi);
     //nrf_delay_ms(100);
 
-    if (psi_diff > .35) {
-      speed = servo_pos_max;
-    } else if (psi_diff < -0.35) {
-      speed = servo_pos_min;
-    } else {
-      speed = servo_stop;
-    }
-
-    /* Set the duty cycle - keep trying until PWM is ready... */
-    while (app_pwm_channel_duty_set(&PWM1, 0, speed) == NRF_ERROR_BUSY);
-    nrf_delay_ms(50);
-    // while (app_pwm_channel_duty_set(&PWM1, 0, servo_pos_min) == NRF_ERROR_BUSY);
-    // nrf_delay_ms(500);
+   	data_num++;
   }
 }
 
