@@ -18,6 +18,7 @@
 
 #include "app_error.h"
 #include "app_pwm.h"
+#include "simple_logger.h"
 
 #include "mpu9250.h"
 
@@ -54,20 +55,40 @@ int main(void) {
   APP_ERROR_CHECK(err_code);
   app_pwm_enable(&PWM2);
 
-  uint8_t servo_pos_max = 25;
-  uint8_t servo_pos_min = 6.75;
-  uint8_t servo_pos_angle_45 = 6;
-  uint8_t servo_pos_angle_90 = 8;
-  uint8_t servo_pos_angle_135 = 11;
-
-
   ret_code_t error_code = NRF_SUCCESS;
 
-  // initialize GPIO driver
+  // initialize GPIO driver, need to uncomment when app_pwm_init is not there
   // if (!nrfx_gpiote_is_init()) {
   //   error_code = nrfx_gpiote_init();
   // }
   // APP_ERROR_CHECK(error_code);
+
+  // initializing printing to sd card
+  printf("Started SD card demo app...\n");
+
+  // Enable SoftDevice (used to get RTC running)
+  nrf_sdh_enable_request();
+
+  // Configure GPIOs
+  nrf_gpio_cfg_output(BUCKLER_SD_ENABLE);
+  nrf_gpio_cfg_output(BUCKLER_SD_CS);
+  nrf_gpio_cfg_output(BUCKLER_SD_MOSI);
+  nrf_gpio_cfg_output(BUCKLER_SD_SCLK);
+  nrf_gpio_cfg_input(BUCKLER_SD_MISO, NRF_GPIO_PIN_NOPULL);
+
+  nrf_gpio_pin_set(BUCKLER_SD_ENABLE);
+  nrf_gpio_pin_set(BUCKLER_SD_CS);
+
+  // Initialize SD card
+  const char filename[] = "test.txt";
+  const char permissions[] = "a"; // w = write, a = append
+
+  // Start file
+  simple_logger_init(filename, permissions);
+
+  // If no header, add it
+  simple_logger_log_header("HEADER for file \'%s\', written on %s \n", filename, "DATE");
+  printf("Wrote header to SD card\n");
 
   // configure leds
   // manually-controlled (simple) output, initially set
@@ -95,11 +116,6 @@ int main(void) {
   mpu9250_init(&twi_mngr_instance);
   printf("MPU-9250 initialized\n");
 
-
-  /* Set the duty cycle - keep trying until PWM is ready... */
-  // while (app_pwm_channel_duty_set(&PWM2, 0, servo_pos_min) == NRF_ERROR_BUSY);
-  // nrf_delay_ms(100);
-
   // loop forever
   float x_rot = 0;
   float y_rot = 0;
@@ -113,7 +129,7 @@ int main(void) {
 
   int loop_index = 0;
   int recalibration_count = 0;
-  while (1) {
+  while (loop_index < 600) {
     // blink two LEDs
     nrf_gpio_pin_toggle(LEDS[loop_index%2]);
 
@@ -145,6 +161,10 @@ int main(void) {
     printf("Angle  (degrees): %10.3f\t%10.3f\t%10.3f\n", x_rot, y_rot, z_rot);
     printf("\n");
 
+    simple_logger_log("Acc,%f,%f,%f\n",acc_measurement.x_axis, acc_measurement.y_axis, acc_measurement.z_axis);
+    simple_logger_log("Gyro,%f,%f,%f\n",gyr_measurement.x_axis, gyr_measurement.y_axis, gyr_measurement.z_axis);
+    simple_logger_log("Angle,%f,%f,%f\n",x_rot, y_rot, z_rot);
+
     if (loop_index <= 5) {
       initial_z = z_rot;
       prev_z = z_rot;
@@ -154,7 +174,7 @@ int main(void) {
       recalibration_count += 1;
     }
 
-    if (recalibration_count == 10) {
+    if (recalibration_count == 5) {
       initial_z = z_rot;
       recalibration_count = 0;
     }
@@ -190,19 +210,11 @@ int main(void) {
 
     printf("Mapping: %10.3f\t\n", output);
 
+     /* Set the duty cycle - keep trying until PWM is ready... */
     while (app_pwm_channel_duty_set(&PWM2, 0, output) == NRF_ERROR_BUSY);
     nrf_delay_ms(100);
 
     prev_z = z_rot;
     loop_index++;
-
-    // if (loop_index >= 30) {
-    //   loop_index = 0;
-    //   x_rot = 0;
-    //   y_rot = 0;
-    //   z_rot = 0;
-    // }
-
-    nrf_delay_ms(100);
   }
 }

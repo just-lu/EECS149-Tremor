@@ -80,10 +80,46 @@ int main (void) {
   APP_ERROR_CHECK(error_code);
 
   // initialization complete
-  printf("Buckler initialized!\n");
+  // printf("Buckler initialized!\n");
+
+
+  // ret_code_t error_code = NRF_SUCCESS;
+
+  printf("Started SD card demo app...\n");
+
+  // Enable SoftDevice (used to get RTC running)
+  nrf_sdh_enable_request();
+
+  // Initialize GPIO driver
+  if (!nrfx_gpiote_is_init()) {
+    error_code = nrfx_gpiote_init();
+  }
+  APP_ERROR_CHECK(error_code);
+
+  // Configure GPIOs
+  nrf_gpio_cfg_output(BUCKLER_SD_ENABLE);
+  nrf_gpio_cfg_output(BUCKLER_SD_CS);
+  nrf_gpio_cfg_output(BUCKLER_SD_MOSI);
+  nrf_gpio_cfg_output(BUCKLER_SD_SCLK);
+  nrf_gpio_cfg_input(BUCKLER_SD_MISO, NRF_GPIO_PIN_NOPULL);
+
+  nrf_gpio_pin_set(BUCKLER_SD_ENABLE);
+  nrf_gpio_pin_set(BUCKLER_SD_CS);
+
+  // Initialize SD card
+  const char filename[] = "1mintest.txt";
+  const char permissions[] = "a"; // w = write, a = append
+
+  // Start file
+  simple_logger_init(filename, permissions);
+
+  // If no header, add it
+  // simple_logger_log_header("HEADER for file \'%s\', written on %s \n", filename, "DATE");
+  printf("Wrote header to SD card\n");
+
 
   // initialize logger
-  printf("%d", simple_logger_init("filename.txt", "w"));
+  // printf("%d", simple_logger_init("filename.txt", "w"));
   // simple_logger_update();
   simple_logger_log_header("%s,%s,%s\n","theta", "psi", "phi");
 
@@ -101,7 +137,7 @@ int main (void) {
   int data_num = 0;
 
   // loop forever
-  while (data_num<100) {
+  while (data_num < 600) {
     // sample analog inputs
     x_val = sample_value(X_CHANNEL) * (3.6 / (float) (1 << 12));
     y_val = sample_value(Y_CHANNEL) * (3.6 / (float) (1 << 12));
@@ -134,7 +170,7 @@ int main (void) {
     // SEGGER_RTT_WriteString(0, mybuffer);
     // nrf_delay_ms(100);
     // printf("tilt-theta: %f\ttilt-psi: %f\ttilt-phi:%f\n", theta, psi, phi);
-    //nrf_delay_ms(100);
+    nrf_delay_ms(100);
 
    	data_num++;
   }
