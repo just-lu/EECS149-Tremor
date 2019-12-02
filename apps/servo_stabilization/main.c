@@ -31,6 +31,14 @@ void pwm_ready_callback(uint32_t pwm_id)    // PWM callback function
     ready_flag = true;
 }
 
+void set_servo_speed(app_pwm_t const * const p_instance, int ms, int loop_num) {
+  int i;
+  for (i = 0; i < loop_num; i++) {
+    while (app_pwm_channel_duty_set(p_instance, 0, (double)ms/20000) == NRF_ERROR_BUSY);
+    nrf_delay_ms(1);
+  }
+}
+
 // LED array
 static uint8_t LEDS[3] = {BUCKLER_LED0, BUCKLER_LED1, BUCKLER_LED2};
 
@@ -179,40 +187,58 @@ int main(void) {
       recalibration_count = 0;
     }
 
-    if (initial_z != 100.0) {
-      if (z_rot - initial_z > 40.0) { //cw
-        output = 10.0;
-      } else if (initial_z - z_rot > 40.0) { //ccw
-        output = 6.0;
-      } else if (z_rot - initial_z > 3.0) { //cw
-        input = z_rot - initial_z;
-        input_start = 3;
-        input_end = 40;
-        output_start = 9;
-        output_end = 10;
-        float slope = 1.0 * (output_end - output_start)/(input_end - input_start);
-        output = output_start + slope * (input - input_start);
-      } else if (initial_z - z_rot > 3.0) { //ccw
-        input = initial_z - z_rot;
-        input_start = 3;
-        input_end = 40;
-        output_start = 6;
-        output_end = 8;
-        float slope = 1.0 * (output_end - output_start)/(input_end - input_start);
-        output = output_end - slope * (input - input_start);
-      } 
-      else {
-        output = 0.0;
-      }
-    } else {
-      output = 0.0;
-    }
+    // if (initial_z != 100.0) {
+    //   if (z_rot - initial_z > 40.0) { //cw
+    //     output = 10.0;
+    //   } else if (initial_z - z_rot > 40.0) { //ccw
+    //     output = 6.0;
+    //   } else if (z_rot - initial_z > 3.0) { //cw
+    //     input = z_rot - initial_z;
+    //     input_start = 3;
+    //     input_end = 40;
+    //     output_start = 9;
+    //     output_end = 10;
+    //     float slope = 1.0 * (output_end - output_start)/(input_end - input_start);
+    //     output = output_start + slope * (input - input_start);
+    //   } else if (initial_z - z_rot > 3.0) { //ccw
+    //     input = initial_z - z_rot;
+    //     input_start = 3;
+    //     input_end = 40;
+    //     output_start = 6;
+    //     output_end = 8;
+    //     float slope = 1.0 * (output_end - output_start)/(input_end - input_start);
+    //     output = output_end - slope * (input - input_start);
+    //   } 
+    //   else {
+    //     output = 0.0;
+    //   }
+    // } else {
+    //   output = 0.0;
+    // }
 
-    printf("Mapping: %10.3f\t\n", output);
+    // printf("Mapping: %10.3f\t\n", output);
+
+    // int pwm_index = 0;
+    // int direction = 0;
+    // if (initial_z != 100.0) {
+    //   if (z_rot - initial_z < 0) {
+    //     direction = 1;
+    //   } else if (z_rot - initial_z > 0) {
+    //     direction = 2;
+    //   }
+
+    //   if ((z_rot - initial_z) > 1.0) {
+    //     pwm_index = 10;
+    //   } else if ((initial_z - z_rot) > 1.0) {
+    //     pwm_index = 10;
+    //   }
+    // }
 
      /* Set the duty cycle - keep trying until PWM is ready... */
-    while (app_pwm_channel_duty_set(&PWM2, 0, output) == NRF_ERROR_BUSY);
-    nrf_delay_ms(100);
+    set_servo_speed(&PWM2, 1460, 5);
+    nrf_delay_ms(50);
+    set_servo_speed(&PWM2, 1540, 5);
+    nrf_delay_ms(50);
 
     prev_z = z_rot;
     loop_index++;
