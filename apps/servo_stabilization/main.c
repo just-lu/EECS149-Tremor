@@ -31,13 +31,11 @@ void pwm_ready_callback(uint32_t pwm_id)    // PWM callback function
     ready_flag = true;
 }
 
-void set_servo_speed(app_pwm_t const * const p_instance, int ms, int loop_num) {
-  int i;
-  for (i = 0; i < loop_num; i++) {
-    while (app_pwm_channel_duty_set(p_instance, 0, (double)ms/20000) == NRF_ERROR_BUSY);
-    nrf_delay_ms(1);
-  }
+void set_servo_speed(app_pwm_t const * const p_instance, int speed, int time) {
+  while (app_pwm_channel_duty_set(p_instance, 0, ((double)speed/20)*100.0) == NRF_ERROR_BUSY);
+  nrf_delay_ms(time);
 }
+
 
 // LED array
 static uint8_t LEDS[3] = {BUCKLER_LED0, BUCKLER_LED1, BUCKLER_LED2};
@@ -50,13 +48,15 @@ int main(void) {
   ret_code_t err_code;
 
   // initializing servo pin number
-  uint8_t SERVO_PIN = 4;
+  uint8_t SERVO_PIN = 3;
+  uint8_t SERVO_PIN_TWO = 4;
 
   /* 1-channel PWM, 50Hz, output on DK LED pins, 20ms period */
-  app_pwm_config_t pwm2_cfg = APP_PWM_DEFAULT_CONFIG_1CH(20000L, SERVO_PIN);
+  app_pwm_config_t pwm2_cfg = APP_PWM_DEFAULT_CONFIG_2CH(20000L, SERVO_PIN, SERVO_PIN_TWO);
 
   //Switch the polarity of the first channel. 
   pwm2_cfg.pin_polarity[0] = APP_PWM_POLARITY_ACTIVE_HIGH;
+  pwm2_cfg.pin_polarity[1] = APP_PWM_POLARITY_ACTIVE_HIGH;
 
   /* Initialize and enable PWM. */
   err_code = app_pwm_init(&PWM2,&pwm2_cfg,NULL);
@@ -71,32 +71,33 @@ int main(void) {
   // }
   // APP_ERROR_CHECK(error_code);
 
-  // initializing printing to sd card
-  printf("Started SD card demo app...\n");
+  
+  // // initializing printing to sd card
+  // printf("Started SD card demo app...\n");
 
-  // Enable SoftDevice (used to get RTC running)
-  nrf_sdh_enable_request();
+  // // Enable SoftDevice (used to get RTC running)
+  // nrf_sdh_enable_request();
 
-  // Configure GPIOs
-  nrf_gpio_cfg_output(BUCKLER_SD_ENABLE);
-  nrf_gpio_cfg_output(BUCKLER_SD_CS);
-  nrf_gpio_cfg_output(BUCKLER_SD_MOSI);
-  nrf_gpio_cfg_output(BUCKLER_SD_SCLK);
-  nrf_gpio_cfg_input(BUCKLER_SD_MISO, NRF_GPIO_PIN_NOPULL);
+  // // Configure GPIOs
+  // nrf_gpio_cfg_output(BUCKLER_SD_ENABLE);
+  // nrf_gpio_cfg_output(BUCKLER_SD_CS);
+  // nrf_gpio_cfg_output(BUCKLER_SD_MOSI);
+  // nrf_gpio_cfg_output(BUCKLER_SD_SCLK);
+  // nrf_gpio_cfg_input(BUCKLER_SD_MISO, NRF_GPIO_PIN_NOPULL);
 
-  nrf_gpio_pin_set(BUCKLER_SD_ENABLE);
-  nrf_gpio_pin_set(BUCKLER_SD_CS);
+  // nrf_gpio_pin_set(BUCKLER_SD_ENABLE);
+  // nrf_gpio_pin_set(BUCKLER_SD_CS);
 
-  // Initialize SD card
-  const char filename[] = "test.txt";
-  const char permissions[] = "a"; // w = write, a = append
+  // // Initialize SD card
+  // const char filename[] = "test.txt";
+  // const char permissions[] = "a"; // w = write, a = append
 
-  // Start file
-  simple_logger_init(filename, permissions);
+  // // Start file
+  // simple_logger_init(filename, permissions);
 
-  // If no header, add it
-  simple_logger_log_header("HEADER for file \'%s\', written on %s \n", filename, "DATE");
-  printf("Wrote header to SD card\n");
+  // // If no header, add it
+  // simple_logger_log_header("HEADER for file \'%s\', written on %s \n", filename, "DATE");
+  // printf("Wrote header to SD card\n");
 
   // configure leds
   // manually-controlled (simple) output, initially set
@@ -169,9 +170,9 @@ int main(void) {
     printf("Angle  (degrees): %10.3f\t%10.3f\t%10.3f\n", x_rot, y_rot, z_rot);
     printf("\n");
 
-    simple_logger_log("Acc,%f,%f,%f\n",acc_measurement.x_axis, acc_measurement.y_axis, acc_measurement.z_axis);
-    simple_logger_log("Gyro,%f,%f,%f\n",gyr_measurement.x_axis, gyr_measurement.y_axis, gyr_measurement.z_axis);
-    simple_logger_log("Angle,%f,%f,%f\n",x_rot, y_rot, z_rot);
+    // simple_logger_log("Acc,%f,%f,%f\n",acc_measurement.x_axis, acc_measurement.y_axis, acc_measurement.z_axis);
+    // simple_logger_log("Gyro,%f,%f,%f\n",gyr_measurement.x_axis, gyr_measurement.y_axis, gyr_measurement.z_axis);
+    // simple_logger_log("Angle,%f,%f,%f\n",x_rot, y_rot, z_rot);
 
     if (loop_index <= 5) {
       initial_z = z_rot;
@@ -235,10 +236,15 @@ int main(void) {
     // }
 
      /* Set the duty cycle - keep trying until PWM is ready... */
-    set_servo_speed(&PWM2, 1460, 5);
-    nrf_delay_ms(50);
-    set_servo_speed(&PWM2, 1540, 5);
-    nrf_delay_ms(50);
+    while (app_pwm_channel_duty_set(&PWM2, 0, 6.5) == NRF_ERROR_BUSY);
+    nrf_delay_ms(100);
+    while (app_pwm_channel_duty_set(&PWM2, 0, 8.5) == NRF_ERROR_BUSY);
+    nrf_delay_ms(100);
+
+    while (app_pwm_channel_duty_set(&PWM2, 1, 6.5) == NRF_ERROR_BUSY);
+    nrf_delay_ms(100);
+    while (app_pwm_channel_duty_set(&PWM2, 1, 8.5) == NRF_ERROR_BUSY);
+    nrf_delay_ms(100);
 
     prev_z = z_rot;
     loop_index++;
