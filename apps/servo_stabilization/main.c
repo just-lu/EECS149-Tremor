@@ -133,12 +133,19 @@ int main(void) {
   float initial_z = 100.0;
   float prev_z = 100.0;
 
+  float initial_x = 100.0;
+  float prev_x = 100.0;
+
   float output;
   int input, input_start, input_end, output_start, output_end;
 
   int loop_index = 0;
   int recalibration_count = 0;
-  while (loop_index < 600) {
+  int z_direction = 0;
+  int x_direction = 0;
+  int prev_z_direction = 100;
+  int prev_x_direction = 100;
+  while (1) {
     // blink two LEDs
     nrf_gpio_pin_toggle(LEDS[loop_index%2]);
 
@@ -177,6 +184,8 @@ int main(void) {
     if (loop_index <= 5) {
       initial_z = z_rot;
       prev_z = z_rot;
+      initial_x = x_rot;
+      prev_x = x_rot;
     }
 
     if (prev_z != 100.0 && fabsf(prev_z - z_rot) < 0.1) {
@@ -185,6 +194,7 @@ int main(void) {
 
     if (recalibration_count == 5) {
       initial_z = z_rot;
+      initial_x = x_rot;
       recalibration_count = 0;
     }
 
@@ -219,34 +229,74 @@ int main(void) {
 
     // printf("Mapping: %10.3f\t\n", output);
 
-    // int pwm_index = 0;
-    // int direction = 0;
-    // if (initial_z != 100.0) {
-    //   if (z_rot - initial_z < 0) {
-    //     direction = 1;
-    //   } else if (z_rot - initial_z > 0) {
-    //     direction = 2;
-    //   }
+  
+    prev_z_direction = 0;
+    if (initial_z != 100.0 && prev_z_direction == 100) {
+      if (z_rot - initial_z < 0) {
+        prev_z_direction = 1;
+      } else if (z_rot - initial_z > 0) {
+        prev_z_direction = 2;
+      }
+    } 
 
-    //   if ((z_rot - initial_z) > 1.0) {
-    //     pwm_index = 10;
-    //   } else if ((initial_z - z_rot) > 1.0) {
-    //     pwm_index = 10;
-    //   }
-    // }
+    z_direction = 0;
+    if (initial_z != 100.0) {
+      if (z_rot - initial_z < 0) {
+        z_direction = 1;
+      } else if (z_rot - initial_z > 0) {
+        z_direction = 2;
+      }
+    }
 
-     /* Set the duty cycle - keep trying until PWM is ready... */
-    while (app_pwm_channel_duty_set(&PWM2, 0, 6.5) == NRF_ERROR_BUSY);
-    nrf_delay_ms(100);
-    while (app_pwm_channel_duty_set(&PWM2, 0, 8.5) == NRF_ERROR_BUSY);
-    nrf_delay_ms(100);
+    if (z_direction == 1) {
+      while (app_pwm_channel_duty_set(&PWM2, 0, 8.0) == NRF_ERROR_BUSY);
+      nrf_delay_ms(10);
+    } else if (z_direction == 2) {
+      while (app_pwm_channel_duty_set(&PWM2, 0, 7.9) == NRF_ERROR_BUSY);
+      nrf_delay_ms(10);
+    } else {
+      while (app_pwm_channel_duty_set(&PWM2, 0, 0) == NRF_ERROR_BUSY);
+      nrf_delay_ms(10);
+    }
 
-    while (app_pwm_channel_duty_set(&PWM2, 1, 6.5) == NRF_ERROR_BUSY);
-    nrf_delay_ms(100);
-    while (app_pwm_channel_duty_set(&PWM2, 1, 8.5) == NRF_ERROR_BUSY);
-    nrf_delay_ms(100);
 
-    prev_z = z_rot;
+    prev_x_direction = 0;
+    if (initial_x != 100.0 && prev_x_direction == 100) {
+      if (x_rot - initial_x < 0) {
+        prev_x_direction = 1;
+      } else if (x_rot - initial_x > 0) {
+        prev_x_direction = 2;
+      }
+    }
+
+    x_direction = 0;
+    if (initial_x != 100.0) {
+      if (x_rot - initial_x < 0) {
+        x_direction = 1;
+      } else if (x_rot - initial_x > 0) {
+        x_direction = 2;
+      }
+    }
+
+    if (x_direction == 1) {
+      while (app_pwm_channel_duty_set(&PWM2, 1, 12) == NRF_ERROR_BUSY);
+      nrf_delay_ms(10);
+    } else if (x_direction == 2) {
+      while (app_pwm_channel_duty_set(&PWM2, 1, 3) == NRF_ERROR_BUSY);
+      nrf_delay_ms(10);
+    } else {
+      while (app_pwm_channel_duty_set(&PWM2, 1, 0) == NRF_ERROR_BUSY);
+      nrf_delay_ms(10);
+    }
+
+    // while (app_pwm_channel_duty_set(&PWM2, 1, 6.5) == NRF_ERROR_BUSY);
+    // nrf_delay_ms(100);
+    // while (app_pwm_channel_duty_set(&PWM2, 1, 8.5) == NRF_ERROR_BUSY);
+    // nrf_delay_ms(100);
+
+    prev_x_direction = x_direction;
+    prev_z_direction = z_direction;
+    prev_z = z_rot; 
     loop_index++;
   }
 }
