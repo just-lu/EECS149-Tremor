@@ -31,14 +31,14 @@ void pwm_ready_callback(uint32_t pwm_id)    // PWM callback function
     ready_flag = true;
 }
 
-static volatile bool flag; 
-void pin_change_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
-  if (nrfx_gpiote_in_is_set(BUCKLER_SWITCH0)) {
-    flag = true;
-  } else {
-    flag = false;
-  }
-}
+// static volatile bool flag; 
+// void pin_change_handler(nrfx_gpiote_pin_t pin, nrf_gpiote_polarity_t action) {
+//   if (nrfx_gpiote_in_is_set(BUCKLER_SWITCH0)) {
+//     flag = true;
+//   } else {
+//     flag = false;
+//   }
+// }
 
 void set_servo_speed(app_pwm_t const * const p_instance, int speed, int time) {
   while (app_pwm_channel_duty_set(p_instance, 0, ((double)speed/20)*100.0) == NRF_ERROR_BUSY);
@@ -116,10 +116,10 @@ int main(void) {
     APP_ERROR_CHECK(error_code);
   }
 
-  nrfx_gpiote_in_config_t in_config = NRFX_GPIOTE_CONFIG_IN_SENSE_TOGGLE(false);
-  in_config.pull = NRF_GPIO_PIN_NOPULL;
-  error_code = nrfx_gpiote_in_init(BUCKLER_SWITCH0, &in_config, pin_change_handler);
-  nrfx_gpiote_in_event_enable(BUCKLER_SWITCH0, true);
+  // nrfx_gpiote_in_config_t in_config = NRFX_GPIOTE_CONFIG_IN_SENSE_TOGGLE(false);
+  // in_config.pull = NRF_GPIO_PIN_NOPULL;
+  // error_code = nrfx_gpiote_in_init(BUCKLER_SWITCH0, &in_config, pin_change_handler);
+  // nrfx_gpiote_in_event_enable(BUCKLER_SWITCH0, true);
 
   // initialize RTT library
   error_code = NRF_LOG_INIT(NULL);
@@ -160,6 +160,13 @@ int main(void) {
   int x_direction = 0;
   int prev_z_direction = 100;
   int prev_x_direction = 100;
+
+  int tremor_count = 0;
+  int time_count = 0;
+
+  int threshold = 4;
+  int period_count = 50;
+  bool flag = false;
 
   while (1) {
     // blink two LEDs
@@ -208,14 +215,13 @@ int main(void) {
       recalibration_count += 1;
     }
 
-    if (recalibration_count > 500) {
+    if (recalibration_count > 25) {
       initial_z = z_rot;
       initial_x = x_rot;   
       recalibration_count = 0;
     }
 
 
-    
     if (initial_z - z_rot > 40.0) { //cw
       output = 10.0;
     } else if (z_rot - initial_z > 40.0) { //ccw
@@ -241,28 +247,75 @@ int main(void) {
     }
 
     // printf("Mapping: %f", output);
-  
+    
+     if (initial_z != 100.0 && prev_z_direction == 100) {
+      if (z_rot - initial_z < 0) {
+        prev_z_direction = 1;
+      } else if (z_rot - initial_z > 0) {
+        prev_z_direction = 2;
+      }
+    }
 
     z_direction = 0;
     if (initial_z != 100.0) {
       if (z_rot - initial_z < 0) {
         z_direction = 1;
       } else if (z_rot - initial_z > 0) {
-        z_direction = 2;
+        z_direction = 2;  
       }
     }
+
+    printf("z_direction: %d\n", z_direction);    
+    printf("prev_z_direction: %d\n", prev_z_direction); 
+
+
+    if ((z_direction == 1 && prev_z_direction != 1) || (z_direction == 2 && prev_z_direction != 2)) {
+      if (tremor_count < 8) {
+        tremor_count++;
+      }
+    }
+
+    if (tremor_count >= threshold && time_count < period_count) {
+      flag = true;
+      // time_count = 0;
+      // tremor_count = 0;
+    } else if (tremor_count < threshold && time_count >= period_count) {
+      flag = false;
+      time_count = 0;
+      tremor_count = 0;
+      // if (tremor_count - 6 >= 0) {
+      //   tremor_count = tremor_count - 6;
+      // } else {
+      //   tremor_count = 0;
+      // }
+      
+    }
+
+    if (time_count >= 50) {
+      time_count = 0;
+      // tremor_count = 0;
+      if (tremor_count - 3 >= 0) {
+        tremor_count = tremor_count - 3;
+      } else {
+        tremor_count = 0;
+      }
+    }
+
+    printf("tremor_count: %d\n", tremor_count);    
+    printf("time_count: %d\n", time_count); 
+    
 
     // printf("Z: %x\n", z_direction);
     // printf("Prev Z: %x\n", prev_z_direction);
     if (output != 0.0 && flag == true) { // microservo is between 5 and 10
       while (app_pwm_channel_duty_set(&PWM2, 0, output) == NRF_ERROR_BUSY);
-      nrf_delay_ms(10);
+      nrf_delay_ms(5);
     // } else if (z_direction == 2) {
     //   while (app_pwm_channel_duty_set(&PWM2, 0, 7) == NRF_ERROR_BUSY);
     //   nrf_delay_ms(10);
     } else {
       while (app_pwm_channel_duty_set(&PWM2, 0, 0) == NRF_ERROR_BUSY);
-      nrf_delay_ms(10);
+      nrf_delay_ms(5);
     }
 
 
@@ -311,16 +364,17 @@ int main(void) {
     // printf("Prev X: %x\n", prev_x_direction);
     if (x_output != 0.0 && flag == true) {
       while (app_pwm_channel_duty_set(&PWM2, 1, x_output) == NRF_ERROR_BUSY);
-      nrf_delay_ms(10);
+      nrf_delay_ms(5);
     
     // else if (x_direction == 2) {
     //   while (app_pwm_channel_duty_set(&PWM2, 1, 7.9) == NRF_ERROR_BUSY);
     //   nrf_delay_ms(10);
     } else {
       while (app_pwm_channel_duty_set(&PWM2, 1, 0) == NRF_ERROR_BUSY);
-      nrf_delay_ms(10);
+      nrf_delay_ms(5);
     }
 
+    time_count++;
     prev_x_direction = x_direction;
     prev_z_direction = z_direction;
     prev_z = z_rot; 
