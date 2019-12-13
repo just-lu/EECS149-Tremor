@@ -211,11 +211,11 @@ int main(void) {
       prev_x = x_rot;
     }
 
-    if (prev_z != 100.0 && fabsf(prev_z - z_rot) < 0.1) {
+    if (prev_z != 100.0 && fabsf(prev_z - z_rot) < 5.0) {
       recalibration_count += 1;
     }
 
-    if (recalibration_count > 25) {
+    if (recalibration_count > 25 && tremor_count < 5) {
       initial_z = z_rot;
       initial_x = x_rot;   
       recalibration_count = 0;
@@ -267,27 +267,26 @@ int main(void) {
 
     printf("z_direction: %d\n", z_direction);    
     printf("prev_z_direction: %d\n", prev_z_direction); 
+    printf("initial_z: %f\n", initial_z); 
 
 
-    if ((z_direction == 1 && prev_z_direction != 1) || (z_direction == 2 && prev_z_direction != 2)) {
-      if (tremor_count < 8) {
+    if ((z_direction == 1 && prev_z_direction != 1)) {
+      if (tremor_count < 9) {
         tremor_count++;
       }
     }
 
+    if (fabsf(initial_z - z_rot) > 100.0) {
+      tremor_count = 0;
+      recalibration_count = 0;
+
+    }
     if (tremor_count >= threshold && time_count < period_count) {
       flag = true;
-      // time_count = 0;
-      // tremor_count = 0;
     } else if (tremor_count < threshold && time_count >= period_count) {
       flag = false;
       time_count = 0;
       tremor_count = 0;
-      // if (tremor_count - 6 >= 0) {
-      //   tremor_count = tremor_count - 6;
-      // } else {
-      //   tremor_count = 0;
-      // }
       
     }
 
@@ -303,19 +302,20 @@ int main(void) {
 
     printf("tremor_count: %d\n", tremor_count);    
     printf("time_count: %d\n", time_count); 
+    printf("flag: %d\n", flag); 
     
 
     // printf("Z: %x\n", z_direction);
     // printf("Prev Z: %x\n", prev_z_direction);
     if (output != 0.0 && flag == true) { // microservo is between 5 and 10
       while (app_pwm_channel_duty_set(&PWM2, 0, output) == NRF_ERROR_BUSY);
-      nrf_delay_ms(5);
+      nrf_delay_ms(10);
     // } else if (z_direction == 2) {
     //   while (app_pwm_channel_duty_set(&PWM2, 0, 7) == NRF_ERROR_BUSY);
     //   nrf_delay_ms(10);
     } else {
       while (app_pwm_channel_duty_set(&PWM2, 0, 0) == NRF_ERROR_BUSY);
-      nrf_delay_ms(5);
+      nrf_delay_ms(10);
     }
 
 
@@ -364,14 +364,14 @@ int main(void) {
     // printf("Prev X: %x\n", prev_x_direction);
     if (x_output != 0.0 && flag == true) {
       while (app_pwm_channel_duty_set(&PWM2, 1, x_output) == NRF_ERROR_BUSY);
-      nrf_delay_ms(5);
+      nrf_delay_ms(10);
     
     // else if (x_direction == 2) {
     //   while (app_pwm_channel_duty_set(&PWM2, 1, 7.9) == NRF_ERROR_BUSY);
     //   nrf_delay_ms(10);
     } else {
       while (app_pwm_channel_duty_set(&PWM2, 1, 0) == NRF_ERROR_BUSY);
-      nrf_delay_ms(5);
+      nrf_delay_ms(10);
     }
 
     time_count++;
