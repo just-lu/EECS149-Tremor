@@ -7,6 +7,7 @@
 
 #include "nrf.h"
 
+#include "mpu9250.h"
 #include "virtual_timer.h"
 #include "virtual_timer_linked_list.h"
 
@@ -16,13 +17,12 @@ void TIMER4_IRQHandler(void) {
   // It clears the event so that it doesn't happen again
   NRF_TIMER4->EVENTS_COMPARE[0] = 0;
 
-  printf("Timer Fired!\n");
-
   uint32_t start_time = read_timer();
   node_t * temp = list_get_first();
   while(temp != NULL && temp->timer_value <= read_timer()) {
   	  // __disable_irq();
     temp->cb();
+    printf("fail 3\n");
     list_remove_first();
 
 	  if(temp->repeated) {
@@ -35,6 +35,7 @@ void TIMER4_IRQHandler(void) {
 	  	NRF_TIMER4->CC[0] = list_get_first() -> timer_value;
 	  }
     temp = list_get_first();
+    printf("fail 4\n");
 	  // __enable_irq();
   }
 
@@ -115,8 +116,8 @@ uint32_t virtual_timer_start_repeated(uint32_t microseconds, virtual_timer_callb
 // Make sure you don't cause linked list consistency issues!
 // Do not forget to free removed timers.
 void virtual_timer_cancel(uint32_t timer_id) {
-  list_remove(timer_id);
-  free(timer_id);
+  list_remove((node_t*) timer_id);
+  free((node_t*) timer_id);
   if(list_get_first() != NULL){
       NRF_TIMER4->CC[2] = list_get_first()->timer_value;
   }

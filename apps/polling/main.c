@@ -5,7 +5,7 @@
 #include "app_error.h"
 #include "app_timer.h"
 #include "app_pwm.h"
-#include "mpu9250.h"
+
 #include "nrf.h"
 #include "nrf_delay.h"
 #include "nrf_gpio.h"
@@ -14,30 +14,70 @@
 #include "nrf_log_default_backends.h"
 #include "nrf_pwr_mgmt.h"
 #include "nrf_serial.h"
+#include "nrfx_gpiote.h"
+#include "nrfx_saadc.h"
+#include "nrfx_twim.h"
 
 #include "buckler.h"
+#include "mpu9250.h"
+#include "simple_logger.h"
 #include "virtual_timer.h"
 
 // I2C manager
 NRF_TWI_MNGR_DEF(twi_mngr_instance, 5, 0);
 
 // global variables
-float x_rot = 0;
-float y_rot = 0;
-float z_rot = 0;
+static float x_rot = 0;
+static float y_rot = 0;
+static float z_rot = 0;
 
-mpu9250_measurement_t acc_measurement;
-mpu9250_measurement_t gyr_measurement;
+static volatile mpu9250_measurement_t acc_measurement;
+static volatile mpu9250_measurement_t gyr_measurement;
+
+static uint32_t poll_period = 500; // in ms
+static volatile bool poll_flag;
+
+// LED array
+static uint8_t LEDS[3] = {BUCKLER_LED0, BUCKLER_LED1, BUCKLER_LED2};
 
 void poll() {
-	printf("Polling IMU data\n");
-		// print results
-		printf("                      X-Axis\t    Y-Axis\t    Z-Axis\n");
-		printf("                  ----------\t----------\t----------\n");
-		printf("I2C IMU Acc  (g): %10.3f\t%10.3f\t%10.3f\n", acc_measurement.x_axis, acc_measurement.y_axis, acc_measurement.z_axis);
-		printf("I2C IMU Gyro (g): %10.3f\t%10.3f\t%10.3f\n", gyr_measurement.x_axis, gyr_measurement.y_axis, gyr_measurement.z_axis);
-		printf("Angle  (degrees): %10.3f\t%10.3f\t%10.3f\n", x_rot, y_rot, z_rot);
-		printf("\n");
+	// __disable_irq();
+	printf("Timer fired\n");
+
+	poll_flag = true;
+
+	// get measurements
+	// acc_measurement = mpu9250_read_accelerometer();
+	// gyr_measurement = mpu9250_read_gyro();
+
+	// // determine rotation from gyro
+	// // gyros are messy, so only add value if it is of significant magnitude
+	// // note that we are dividing by 10 since we are measuring over a tenth of a second
+	// float x_rot_amount = gyr_measurement.x_axis * poll_period / 1000.00;
+	// if (abs(x_rot_amount) > 0.005) {
+	// 	x_rot += x_rot_amount;
+	// }
+	// float y_rot_amount = gyr_measurement.y_axis * poll_period / 1000.00;
+	// if (abs(y_rot_amount) > 0.005) {
+	// 	y_rot += y_rot_amount;
+	// }
+	// float z_rot_amount = gyr_measurement.z_axis * poll_period / 1000.00;
+	// if (abs(z_rot_amount) > 0.005) {
+	// 	z_rot += z_rot_amount;
+	// }
+
+	// printf("                      X-Axis\t    Y-Axis\t    Z-Axis\n");
+	// printf("Rot ammount  (degrees): %10.3f\t%10.3f\t%10.3f\n", x_rot, y_rot, z_rot);
+
+
+	// print results
+	// printf("                      X-Axis\t    Y-Axis\t    Z-Axis\n");
+	// printf("                  ----------\t----------\t----------\n");
+	// printf("I2C IMU Acc  (g): %10.3f\t%10.3f\t%10.3f\n", acc_measurement.x_axis, acc_measurement.y_axis, acc_measurement.z_axis);
+	// printf("I2C IMU Gyro (g): %10.3f\t%10.3f\t%10.3f\n", gyr_measurement.x_axis, gyr_measurement.y_axis, gyr_measurement.z_axis);
+	// printf("Angle  (degrees): %10.3f\t%10.3f\t%10.3f\n", x_rot, y_rot, z_rot);
+	// printf("\n");
+	// __enable_irq();
 }
 
 int main(void) {
@@ -48,6 +88,20 @@ int main(void) {
 	APP_ERROR_CHECK(error_code);
 	NRF_LOG_DEFAULT_BACKENDS_INIT();
 	printf("Board initialized!\n");
+
+	// initialize GPIO driver, need to uncomment when app_pwm_init is not there
+	if (!nrfx_gpiote_is_init()) {
+		error_code = nrfx_gpiote_init();
+	}
+	APP_ERROR_CHECK(error_code);
+
+	// configure leds
+	// manually-controlled (simple) output, initially set
+	nrfx_gpiote_out_config_t out_config = NRFX_GPIOTE_CONFIG_OUT_SIMPLE(true);
+	for (int i=0; i<3; i++) {
+		error_code = nrfx_gpiote_out_init(LEDS[i], &out_config);
+		APP_ERROR_CHECK(error_code);
+	}
 
 	// initialize i2c master (two wire interface)
 	nrf_drv_twi_config_t i2c_config = NRF_DRV_TWI_DEFAULT_CONFIG;
@@ -90,31 +144,46 @@ int main(void) {
 	bool flag = false;
 
 
-	// start polling timer
-	virtual_timer_start_repeated(500000, poll);
+	// start polling timer in microsec
+	virtual_timer_start_repeated(poll_period * 1000, poll);
 
 	// loop forever
 	while(1) {
-		// get measurements
-		acc_measurement = mpu9250_read_accelerometer();
-		gyr_measurement = mpu9250_read_gyro();
+		if (poll_flag) {
+			//get measurements
+			printf("Time: %d\n\n", read_timer());
+			acc_measurement = mpu9250_read_accelerometer();
+			gyr_measurement = mpu9250_read_gyro();
 
-		// determine rotation from gyro
-		// gyros are messy, so only add value if it is of significant magnitude
-		// note that we are dividing by 10 since we are measuring over a tenth of a second
-		float x_rot_amount = gyr_measurement.x_axis/10;
-		if (abs(x_rot_amount) > 0.5) {
-			x_rot += x_rot_amount;
-		}
-		float y_rot_amount = gyr_measurement.y_axis/10;
-		if (abs(y_rot_amount) > 0.5) {
-			y_rot += y_rot_amount;
-		}
-		float z_rot_amount = gyr_measurement.z_axis/10;
-		if (abs(z_rot_amount) > 0.5) {
-			z_rot += z_rot_amount;
+			// determine rotation from gyro
+			// gyros are messy, so only add value if it is of significant magnitude
+			// note that we are dividing by 10 since we are measuring over a tenth of a second
+			float x_rot_amount = gyr_measurement.x_axis * poll_period / 1000.00;
+			if (x_rot_amount > 0.005 || x_rot_amount < 0.005) {
+				x_rot += x_rot_amount;
+			}
+			float z_rot_amount = gyr_measurement.z_axis * poll_period / 1000.00;
+			if (z_rot_amount > 0.005 || z_rot_amount < 0.005) {
+				z_rot += z_rot_amount;
+			}
+
+			printf("                      X-Axis\t    Y-Axis\t    Z-Axis\n");
+			printf("Rot ammount  (degrees): %10.3f\t%10.3f\t%10.3f\n", x_rot, y_rot, z_rot);
+
+
+			// print results
+			printf("                      X-Axis\t    Y-Axis\t    Z-Axis\n");
+			printf("                  ----------\t----------\t----------\n");
+			printf("I2C IMU Acc  (g): %10.3f\t%10.3f\t%10.3f\n", acc_measurement.x_axis, acc_measurement.y_axis, acc_measurement.z_axis);
+			printf("I2C IMU Gyro (g): %10.3f\t%10.3f\t%10.3f\n", gyr_measurement.x_axis, gyr_measurement.y_axis, gyr_measurement.z_axis);
+			printf("Angle  (degrees): %10.3f\t%10.3f\t%10.3f\n", x_rot, y_rot, z_rot);
+			printf("\n");
+
+			poll_flag = false;
 		}
 
-		nrf_delay_ms(10);
+		nrf_gpio_pin_toggle(LEDS[loop_index%3]);
+		nrf_delay_ms(100);
+		loop_index++;
 	}
 }
