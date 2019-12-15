@@ -1,6 +1,7 @@
 #pragma once
 
 #include "nrf.h"
+#include "mpu9250.h"
 
 // Type for the function pointer to call when the timer expires
 typedef void (*virtual_timer_callback_t)(void);
