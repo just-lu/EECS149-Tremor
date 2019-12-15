@@ -40,12 +40,6 @@ void pwm_ready_callback(uint32_t pwm_id)    // PWM callback function
 //   }
 // }
 
-void set_servo_speed(app_pwm_t const * const p_instance, int speed, int time) {
-  while (app_pwm_channel_duty_set(p_instance, 0, ((double)speed/20)*100.0) == NRF_ERROR_BUSY);
-  nrf_delay_ms(time);
-}
-
-
 // LED array
 static uint8_t LEDS[3] = {BUCKLER_LED0, BUCKLER_LED1, BUCKLER_LED2};
 
@@ -163,12 +157,13 @@ int main(void) {
 
   int tremor_count = 0;
   int time_count = 0;
+  int same_direction_count = 0;
 
   int threshold = 4;
   int period_count = 50;
   bool flag = false;
 
-  while (1) {
+  while (loop_index < 100000) {
     // blink two LEDs
     nrf_gpio_pin_toggle(LEDS[loop_index%2]);
 
@@ -211,40 +206,40 @@ int main(void) {
       prev_x = x_rot;
     }
 
-    if (prev_z != 100.0 && fabsf(prev_z - z_rot) < 5.0) {
-      recalibration_count += 1;
-    }
+    // if (prev_z != 100.0 && fabsf(prev_z - z_rot) < 5.0) {
+    //   recalibration_count += 1;
+    // }
 
-    if (recalibration_count > 25 && tremor_count < 5) {
-      initial_z = z_rot;
-      initial_x = x_rot;   
-      recalibration_count = 0;
-    }
+    // if (recalibration_count > 25 && tremor_count < 5) {
+    //   initial_z = z_rot;
+    //   initial_x = x_rot;   
+    //   recalibration_count = 0;
+    // }
 
 
-    if (initial_z - z_rot > 40.0) { //cw
-      output = 10.0;
-    } else if (z_rot - initial_z > 40.0) { //ccw
-      output = 5.0;
-    } else if (initial_z - z_rot > 0) { //cw
-      input = z_rot - initial_z;
-      input_start = 0;
-      input_end = 40;
-      output_start = 7.5;
-      output_end = 10;
-      float slope = 1.0 * (output_end - output_start)/(input_end - input_start);
-      output = output_start + slope * (input - input_start);
-    } else if (z_rot - initial_z > 0) { //ccw
-      input = initial_z - z_rot;
-      input_start = 0;   
-      input_end = 40;
-      output_start = 7.5;
-      output_end = 5;
-      float slope = 1.0 * (output_end - output_start)/(input_end - input_start);
-      output = output_start + slope * (input - input_start);
-    } else {
-      output = 0.0;
-    }
+    // if (initial_z - z_rot > 40.0) { //cw
+    //   output = 10.0;
+    // } else if (z_rot - initial_z > 40.0) { //ccw
+    //   output = 5.0;
+    // } else if (initial_z - z_rot > 0) { //cw
+    //   input = z_rot - initial_z;
+    //   input_start = 0;
+    //   input_end = 40;
+    //   output_start = 7.5;
+    //   output_end = 10;
+    //   float slope = 1.0 * (output_end - output_start)/(input_end - input_start);
+    //   output = output_start + slope * (input - input_start);
+    // } else if (z_rot - initial_z > 0) { //ccw
+    //   input = initial_z - z_rot;
+    //   input_start = 0;   
+    //   input_end = 40;
+    //   output_start = 7.5;
+    //   output_end = 5;
+    //   float slope = 1.0 * (output_end - output_start)/(input_end - input_start);
+    //   output = output_start + slope * (input - input_start);
+    // } else {
+    //   output = 0.0;
+    // }
 
     // printf("Mapping: %f", output);
     
@@ -256,31 +251,79 @@ int main(void) {
       }
     }
 
+    // z_direction = 0;
+    // if (initial_z != 100.0) {
+    //   if (z_rot - initial_z < 0) {
+    //     z_direction = 1;
+    //   } else if (z_rot - initial_z > 0) {
+    //     z_direction = 2;  
+    //   }
+    // }
+
     z_direction = 0;
     if (initial_z != 100.0) {
-      if (z_rot - initial_z < 0) {
+      if (z_rot - prev_z < -20.0) { //cw
+        output = 7.8;
+      } else if (z_rot - prev_z > 20.0) { //ccw
+        output = 7.3;
+      } else if (z_rot - prev_z < -1.0) { //cw
+        input = prev_z - z_rot;
+        if (input < 4) {
+          output = 7.57;
+        } else {
+          input_start = 2;
+          input_end = 20;
+          output_start = 7.57;
+          output_end = 7.8;
+          float slope = 1.0 * (output_end - output_start)/(input_end - input_start);
+          output = output_start + slope * (input - input_start);
+        }
         z_direction = 1;
-      } else if (z_rot - initial_z > 0) {
-        z_direction = 2;  
-      }
+      } else if (z_rot - prev_z > 1.0) { //ccw
+        input = z_rot - prev_z;
+        if (input < 4) {
+          output = 7.555;
+        } else {
+          input_start = 2;
+          input_end = 20;
+          output_start = 7.54;
+          output_end = 7.3;
+          float slope = 1.0 * (output_end - output_start)/(input_end - input_start);
+          output = output_start + slope * (input - input_start);
+        }
+        z_direction = 2;
+      } 
     }
 
     printf("z_direction: %d\n", z_direction);    
     printf("prev_z_direction: %d\n", prev_z_direction); 
-    printf("initial_z: %f\n", initial_z); 
+    printf("difference: %f\n", z_rot-prev_z); 
+    printf("output: %f\n", output);
 
 
     if ((z_direction == 1 && prev_z_direction != 1)) {
-      if (tremor_count < 9) {
+      if (tremor_count < 10) {
         tremor_count++;
       }
     }
 
-    if (fabsf(initial_z - z_rot) > 100.0) {
-      tremor_count = 0;
-      recalibration_count = 0;
-
+    if ((z_direction == 1 && prev_z_direction == 1) || (z_direction == 2 && prev_z_direction == 2)) {
+      same_direction_count++;
+    } else {
+      same_direction_count = 0;
     }
+
+    if (same_direction_count > 50) {
+      tremor_count = 0;
+      same_direction_count = 0;
+      flag = false;
+    }
+
+    // if (fabsf(initial_z - z_rot) > 100.0) {
+    //   tremor_count = 0;
+    //   recalibration_count = 0;
+
+    // }
     if (tremor_count >= threshold && time_count < period_count) {
       flag = true;
     } else if (tremor_count < threshold && time_count >= period_count) {
@@ -290,7 +333,7 @@ int main(void) {
       
     }
 
-    if (time_count >= 50) {
+    if (time_count >= period_count) {
       time_count = 0;
       // tremor_count = 0;
       if (tremor_count - 3 >= 0) {
@@ -302,77 +345,77 @@ int main(void) {
 
     printf("tremor_count: %d\n", tremor_count);    
     printf("time_count: %d\n", time_count); 
-    printf("flag: %d\n", flag); 
+    // printf("flag: %d\n", flag); 
     
 
     // printf("Z: %x\n", z_direction);
     // printf("Prev Z: %x\n", prev_z_direction);
-    if (output != 0.0 && flag == true) { // microservo is between 5 and 10
+    if (z_direction == 1) { // microservo is between 5 and 10
       while (app_pwm_channel_duty_set(&PWM2, 0, output) == NRF_ERROR_BUSY);
-      nrf_delay_ms(10);
-    // } else if (z_direction == 2) {
-    //   while (app_pwm_channel_duty_set(&PWM2, 0, 7) == NRF_ERROR_BUSY);
-    //   nrf_delay_ms(10);
+      nrf_delay_ms(1);
+    } else if (z_direction == 2) {
+      while (app_pwm_channel_duty_set(&PWM2, 0, output) == NRF_ERROR_BUSY);
+      nrf_delay_ms(1);
     } else {
       while (app_pwm_channel_duty_set(&PWM2, 0, 0) == NRF_ERROR_BUSY);
-      nrf_delay_ms(10);
+      nrf_delay_ms(1);
     }
 
 
-    if (initial_x != 100.0 && prev_x_direction == 100) {
-      if (x_rot - initial_x < 0) {
-        prev_x_direction = 1;
-      } else if (x_rot - initial_x > 0) {
-        prev_x_direction = 2;
-      }
-    }
+    // if (initial_x != 100.0 && prev_x_direction == 100) {
+    //   if (x_rot - initial_x < 0) {
+    //     prev_x_direction = 1;
+    //   } else if (x_rot - initial_x > 0) {
+    //     prev_x_direction = 2;
+    //   }
+    // }
 
-    x_direction = 0;
-    if (initial_x != 100.0) {
-      if (x_rot - initial_x < 0) {
-        x_direction = 1;
-      } else if (x_rot - initial_x > 0) {
-        x_direction = 2;
-      }
-    }
+    // x_direction = 0;
+    // if (initial_x != 100.0) {
+    //   if (x_rot - initial_x < 0) {
+    //     x_direction = 1;
+    //   } else if (x_rot - initial_x > 0) {
+    //     x_direction = 2;
+    //   }
+    // }
 
-    if (initial_x - x_rot > 40.0) { //cw
-      x_output = 10.0;
-    } else if (x_rot - initial_x > 40.0) { //ccw
-      x_output = 5.0;
-    } else if (initial_x - x_rot > 0) { //cw
-      input = x_rot - initial_x;
-      input_start = 0;
-      input_end = 40;
-      output_start = 7.5;
-      output_end = 10;
-      float slope = 1.0 * (output_end - output_start)/(input_end - input_start);
-      x_output = output_start + slope * (input - input_start);
-    } else if (x_rot - initial_x > 0) { //ccw
-      input = initial_x - x_rot;
-      input_start = 0;   
-      input_end = 40;
-      output_start = 7.5;
-      output_end = 5;
-      float slope = 1.0 * (output_end - output_start)/(input_end - input_start);
-      x_output = output_start + slope * (input - input_start);
-    } else {
-      x_output = 0.0;
-    }
+    // if (initial_x - x_rot > 40.0) { //cw
+    //   x_output = 10.0;
+    // } else if (x_rot - initial_x > 40.0) { //ccw
+    //   x_output = 5.0;
+    // } else if (initial_x - x_rot > 0) { //cw
+    //   input = x_rot - initial_x;
+    //   input_start = 0;
+    //   input_end = 40;
+    //   output_start = 7.5;
+    //   output_end = 10;
+    //   float slope = 1.0 * (output_end - output_start)/(input_end - input_start);
+    //   x_output = output_start + slope * (input - input_start);
+    // } else if (x_rot - initial_x > 0) { //ccw
+    //   input = initial_x - x_rot;
+    //   input_start = 0;   
+    //   input_end = 40;
+    //   output_start = 7.5;
+    //   output_end = 5;
+    //   float slope = 1.0 * (output_end - output_start)/(input_end - input_start);
+    //   x_output = output_start + slope * (input - input_start);
+    // } else {
+    //   x_output = 0.0;
+    // }
 
-    // printf("X: %x\n", x_direction);
-    // printf("Prev X: %x\n", prev_x_direction);
-    if (x_output != 0.0 && flag == true) {
-      while (app_pwm_channel_duty_set(&PWM2, 1, x_output) == NRF_ERROR_BUSY);
-      nrf_delay_ms(10);
-    
-    // else if (x_direction == 2) {
-    //   while (app_pwm_channel_duty_set(&PWM2, 1, 7.9) == NRF_ERROR_BUSY);
+    // // printf("X: %x\n", x_direction);
+    // // printf("Prev X: %x\n", prev_x_direction);
+    // if (x_output != 0.0 && flag == true) {
+    //   while (app_pwm_channel_duty_set(&PWM2, 1, x_output) == NRF_ERROR_BUSY);
     //   nrf_delay_ms(10);
-    } else {
-      while (app_pwm_channel_duty_set(&PWM2, 1, 0) == NRF_ERROR_BUSY);
-      nrf_delay_ms(10);
-    }
+    
+    // // else if (x_direction == 2) {
+    // //   while (app_pwm_channel_duty_set(&PWM2, 1, 7.9) == NRF_ERROR_BUSY);
+    // //   nrf_delay_ms(10);
+    // } else {
+    //   while (app_pwm_channel_duty_set(&PWM2, 1, 0) == NRF_ERROR_BUSY);
+    //   nrf_delay_ms(10);
+    // }
 
     time_count++;
     prev_x_direction = x_direction;
