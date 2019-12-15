@@ -22,7 +22,6 @@ void TIMER4_IRQHandler(void) {
   while(temp != NULL && temp->timer_value <= read_timer()) {
   	  // __disable_irq();
     temp->cb();
-    printf("fail 3\n");
     list_remove_first();
 
 	  if(temp->repeated) {
@@ -35,7 +34,6 @@ void TIMER4_IRQHandler(void) {
 	  	NRF_TIMER4->CC[0] = list_get_first() -> timer_value;
 	  }
     temp = list_get_first();
-    printf("fail 4\n");
 	  // __enable_irq();
   }
 
