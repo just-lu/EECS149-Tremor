@@ -15,7 +15,7 @@
 #include "nrfx_gpiote.h"
 
 #include "buckler.h"
-#include "bno055.h"
+#include "mpu9250.h"
 
 // I2C manager
 NRF_TWI_MNGR_DEF(twi_mngr_instance, 5, 0);
@@ -38,8 +38,9 @@ int main(void) {
   APP_ERROR_CHECK(error_code);
 
   // initialize MPU-9250 driver
-  bno055_init(&twi_mngr_instance);
-  printf("BNO055 initialized\n");
+  printf("before init");
+  mpu9250_init(&twi_mngr_instance);
+  printf("mpu9250 initialized\n");
 
   // loop forever
   float x_rot = 0;
@@ -48,8 +49,9 @@ int main(void) {
 
   while (1) {
     // get measurements
-    bno055_measurement_t acc_measurement = bno055_read_accelerometer();
-    bno055_measurement_t gyr_measurement = bno055_read_gyro();
+    mpu9250_measurement_t acc_measurement = mpu9250_read_accelerometer();
+    mpu9250_measurement_t gyr_measurement = mpu9250_read_gyro();
+    mpu9250_measurement_t mag_measurement = mpu9250_read_magnetometer();
 
     // determine rotation from gyro
     // gyros are messy, so only add value if it is of significant magnitude
@@ -73,6 +75,7 @@ int main(void) {
     printf("I2C IMU Acc (g): %10.3f\t%10.3f\t%10.3f\n", acc_measurement.x_axis, acc_measurement.y_axis, acc_measurement.z_axis);
     printf("I2C IMU Gyro (g):  %10.3f\t%10.3f\t%10.3f\n", gyr_measurement.x_axis, gyr_measurement.y_axis, gyr_measurement.z_axis);
     printf("Angle  (degrees): %10.3f\t%10.3f\t%10.3f\n", x_rot, y_rot, z_rot);
+    printf("I2C IMU Mag (g):  %10.3f\t%10.3f\t%10.3f\n", mag_measurement.x_axis, mag_measurement.y_axis, mag_measurement.z_axis);
     printf("\n");
 
     nrf_delay_ms(100);
