@@ -52,6 +52,7 @@ static void i2c_reg_write(uint8_t i2c_addr, uint8_t reg_addr, uint8_t data) {
 
 // initialization and configuration
 void mpu9250_init(const nrf_twi_mngr_t* i2c) {
+
   i2c_manager = i2c;
 
   // initialize a timer - the default frequency is 16MHz
@@ -65,15 +66,10 @@ void mpu9250_init(const nrf_twi_mngr_t* i2c) {
   //ret_code_t error_code = nrf_drv_timer_init(&gyro_timer, &timer_cfg, gyro_timer_event_handler);
   ret_code_t error_code = nrfx_timer_init(&gyro_timer, &timer_cfg, gyro_timer_event_handler);
   APP_ERROR_CHECK(error_code);
-
-  // print out address
-  printf("\nMPU address: %x\n", MPU_ADDRESS);
-
+      
   // reset mpu
   i2c_reg_write(MPU_ADDRESS, MPU9250_PWR_MGMT_1, 0x80);
   nrf_delay_ms(100);
-
-  printf("it can write\n");
 
   // disable sleep mode
   i2c_reg_write(MPU_ADDRESS, MPU9250_PWR_MGMT_1, 0x00);
@@ -114,13 +110,10 @@ mpu9250_measurement_t mpu9250_read_accelerometer() {
 
 mpu9250_measurement_t mpu9250_read_gyro() {
   // read values
-  printf("read gyro\n");
   int16_t x_val = (((uint16_t)i2c_reg_read(MPU_ADDRESS, MPU9250_GYRO_XOUT_H)) << 8) | i2c_reg_read(MPU_ADDRESS, MPU9250_GYRO_XOUT_L);
   int16_t y_val = (((uint16_t)i2c_reg_read(MPU_ADDRESS, MPU9250_GYRO_YOUT_H)) << 8) | i2c_reg_read(MPU_ADDRESS, MPU9250_GYRO_YOUT_L);
   int16_t z_val = (((uint16_t)i2c_reg_read(MPU_ADDRESS, MPU9250_GYRO_ZOUT_H)) << 8) | i2c_reg_read(MPU_ADDRESS, MPU9250_GYRO_ZOUT_L);
 
-  printf("already read gyro\n");
-  printf("x: %x, y: %x, z: %x \n", MPU9250_GYRO_XOUT_H, MPU9250_GYRO_YOUT_H, MPU9250_GYRO_ZOUT_H);
   // convert to g
   // coversion at +/- 2000 degrees/second is 16.4 LSB/g
   mpu9250_measurement_t measurement = {0};

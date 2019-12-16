@@ -47,7 +47,7 @@ int main(void) {
   float y_rot = 0;
   float z_rot = 0;
 
-  while (1) {
+  while (0) {
     // get measurements
     mpu9250_measurement_t acc_measurement = mpu9250_read_accelerometer();
     mpu9250_measurement_t gyr_measurement = mpu9250_read_gyro();
