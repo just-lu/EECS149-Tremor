@@ -8,185 +8,83 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "app_error.h"
 #include "nrf.h"
 #include "nrf_delay.h"
 #include "nrf_drv_timer.h"
 #include "nrf_twi_mngr.h"
 
+#include "nrf_drv_spi.h"
+#include "nrf_drv_gpiote.h"
+#include "app_error.h"
+
 #include "bno055.h"
 
-// I2C address is 0x28 or 0x29
-#define BNO055_I2C_ADDRESS 0x28
+static const nrf_drv_spi_t* spi_instance;
+static nrf_drv_spi_config_t spi_config = NRF_DRV_SPI_DEFAULT_CONFIG;
 
-static const nrf_twi_mngr_t* i2c_manager = NULL;
+void mpu9250_init_spi(const nrf_drv_spi_t* instance) {
+  // LCD screen
+  // #define BUCKLER_LCD_SCLK NRF_GPIO_PIN_MAP(0,17)
+  // #define BUCKLER_LCD_MISO NRF_GPIO_PIN_MAP(0,16)
+  // #define BUCKLER_LCD_MOSI NRF_GPIO_PIN_MAP(0,15)
+  // #define BUCKLER_LCD_CS   NRF_GPIO_PIN_MAP(0,18)
 
-// rotation tracking variables
-static const nrf_drv_timer_t gyro_timer = NRFX_TIMER_INSTANCE(1);
-static bno055_measurement_t integrated_angle;
-static uint32_t prev_timer_val;
+  //  nrf_drv_timer_config_t timer_cfg = {
+  //   .frequency          = NRF_TIMER_FREQ_1MHz,
+  //   .mode               = NRF_TIMER_MODE_TIMER,
+  //   .bit_width          = NRF_TIMER_BIT_WIDTH_32,
+  //   .interrupt_priority = NRFX_TIMER_DEFAULT_CONFIG_IRQ_PRIORITY,
+  //   .p_context          = NULL,
+  // };
+  spi_instance = instance;
 
-static void gyro_timer_event_handler(nrf_timer_event_t event_type, void* p_context) {
-  // don't care about events
+  spi_config.sck_pin    = BUCKLER_LCD_SCLK;
+  spi_config.miso_pin   = BUCKLER_LCD_MISO;
+  spi_config.mosi_pin   = BUCKLER_LCD_MOSI;
+  spi_config.ss_pin     = BUCKLER_LCD_CS;
+  spi_config.frequency  = NRF_DRV_SPI_FREQ_1M;
+  spi_config.mode       = NRF_DRV_SPI_MODE_0;
+  spi_config.bit_order  = NRF_DRV_SPI_BIT_ORDER_MSB_FIRST;
+
+  // nrf_gpio_cfg_output(RTC_WDI);
+  // nrf_gpio_pin_set(RTC_WDI);
 }
 
-static uint8_t i2c_reg_read(uint8_t i2c_addr, uint8_t reg_addr) {
-  uint8_t rx_buf = 0;
-  nrf_twi_mngr_transfer_t const read_transfer[] = {
-    NRF_TWI_MNGR_WRITE(i2c_addr, &reg_addr, 1, NRF_TWI_MNGR_NO_STOP),
-    NRF_TWI_MNGR_READ(i2c_addr, &rx_buf, 1, 0),
-  };
-  ret_code_t error_code = nrf_twi_mngr_perform(i2c_manager, NULL, read_transfer, 2, NULL);
-  APP_ERROR_CHECK(error_code);
-  return rx_buf;
+void mpu9250_read_reg(uint8_t reg, uint8_t* read_buf, size_t len){
+  if (len > 256) return;
+  uint8_t readreg = reg;
+  uint8_t buf[257];
+
+  nrf_drv_spi_init(spi_instance, &spi_config, NULL, NULL);
+  nrf_drv_spi_transfer(spi_instance, &readreg, 1, buf, len+1);
+  nrf_drv_spi_uninit(spi_instance);
+
+  memcpy(read_buf, buf+1, len);
 }
 
-static void i2c_reg_write(uint8_t i2c_addr, uint8_t reg_addr, uint8_t data) {
-  uint8_t buf[2] = {reg_addr, data};
-  nrf_twi_mngr_transfer_t const write_transfer[] = {
-    NRF_TWI_MNGR_WRITE(i2c_addr, buf, 2, 0),
-  };
-  ret_code_t error_code = nrf_twi_mngr_perform(i2c_manager, NULL, write_transfer, 1, NULL);
-  APP_ERROR_CHECK(error_code);
+void mpu9250_write_reg(uint8_t reg, uint8_t* write_buf, size_t len) {
+  if (len > 256) return;
+  uint8_t buf[257];
+  buf[0] = 0x80 | reg;
+  memcpy(buf+1, write_buf, len);
+
+  nrf_drv_spi_init(spi_instance, &spi_config, NULL, NULL);
+  nrf_drv_spi_transfer(spi_instance, buf, len+1, NULL, 0);
+  nrf_drv_spi_uninit(spi_instance);
 }
 
-// initialization and configuration
-void bno055_init(const nrf_twi_mngr_t* i2c) {
-  i2c_manager = i2c;
+void mpu9250_get_gyro(mpu9250_measurement_t* gyr) {
+  uint8_t read[10];
 
-  // initialize a timer - the default frequency is 16MHz
-  nrf_drv_timer_config_t timer_cfg = {
-    .frequency          = NRF_TIMER_FREQ_1MHz,
-    .mode               = NRF_TIMER_MODE_TIMER,
-    .bit_width          = NRF_TIMER_BIT_WIDTH_32,
-    .interrupt_priority = NRFX_TIMER_DEFAULT_CONFIG_IRQ_PRIORITY,
-    .p_context          = NULL,
-  };
-  //ret_code_t error_code = nrf_drv_timer_init(&gyro_timer, &timer_cfg, gyro_timer_event_handler);
-  ret_code_t error_code = nrfx_timer_init(&gyro_timer, &timer_cfg, gyro_timer_event_handler);
-  APP_ERROR_CHECK(error_code);
+  mpu9250_read_reg(MPU9250_GYRO_XOUT_H, read, 8);
 
-  // // reset mpu
-  // i2c_reg_write(BNO055_I2C_ADDRESS, MPU9250_PWR_MGMT_1, 0x80);
-  // nrf_delay_ms(100);
-
-  // // disable sleep mode
-  // i2c_reg_write(BNO055_I2C_ADDRESS, MPU9250_PWR_MGMT_1, 0x00);
-
-  // // enable bypass mode
-  // i2c_reg_write(BNO055_I2C_ADDRESS, MPU9250_USER_CTRL, 0x00);
-  // nrf_delay_ms(3);
-  // i2c_reg_write(BNO055_I2C_ADDRESS, MPU9250_INT_PIN_CFG, 0x02);
-
-  // // configure gyro range to +/- 2000 degrees per second
-  // i2c_reg_write(BNO055_I2C_ADDRESS, MPU9250_GYRO_CONFIG, 0x18);
-
-  // // configure accelerometer range to +/- 2 g
-  // i2c_reg_write(BNO055_I2C_ADDRESS, MPU9250_ACCEL_CONFIG, 0x00);
-
-  // reset magnetometer
-  // i2c_reg_write(MAG_ADDRESS, AK8963_CNTL2, 0x01);
-  // nrf_delay_ms(100);
-
-  // // configure magnetometer, enable continuous measurement mode (8 Hz)
-  // i2c_reg_write(MAG_ADDRESS, AK8963_CNTL1, 0x02);
+  printf("GYRO: %x\n", read[0]);
 }
 
-// H is MSB and L is LSB
-bno055_measurement_t bno055_read_accelerometer() {
-  // read values
-  int16_t x_val = (((uint16_t)i2c_reg_read(BNO055_I2C_ADDRESS, BNO055_REG_ADDR_ACC_DATA_X_MSB)) << 8) | i2c_reg_read(BNO055_I2C_ADDRESS, BNO055_REG_ADDR_ACC_DATA_X_LSB);
-  int16_t y_val = (((uint16_t)i2c_reg_read(BNO055_I2C_ADDRESS, BNO055_REG_ADDR_ACC_DATA_Y_MSB)) << 8) | i2c_reg_read(BNO055_I2C_ADDRESS, BNO055_REG_ADDR_ACC_DATA_Y_LSB);
-  int16_t z_val = (((uint16_t)i2c_reg_read(BNO055_I2C_ADDRESS, BNO055_REG_ADDR_ACC_DATA_Z_MSB)) << 8) | i2c_reg_read(BNO055_I2C_ADDRESS, BNO055_REG_ADDR_ACC_DATA_Z_LSB);
+void mpu9250_get_acc(mpu9250_measurement_t* acc) {
+  uint8_t read[10];
 
-  // convert to g
-  // coversion at +/- 2 g is 16384 LSB/g, range is 4 g
-  bno055_measurement_t measurement = {0};
-  measurement.x_axis = ((float)x_val) / 8192;
-  measurement.y_axis = ((float)y_val) / 8192;
-  measurement.z_axis = ((float)z_val) / 8192;
-  return measurement;
-}
-
-bno055_measurement_t bno055_read_gyro() {
-  // read values
-  int16_t x_val = (((uint16_t)i2c_reg_read(BNO055_I2C_ADDRESS, BNO055_REG_ADDR_GYR_DATA_X_MSB)) << 8) | i2c_reg_read(BNO055_I2C_ADDRESS, BNO055_REG_ADDR_GYR_DATA_X_LSB);
-  int16_t y_val = (((uint16_t)i2c_reg_read(BNO055_I2C_ADDRESS, BNO055_REG_ADDR_GYR_DATA_Y_MSB)) << 8) | i2c_reg_read(BNO055_I2C_ADDRESS, BNO055_REG_ADDR_GYR_DATA_Y_LSB);
-  int16_t z_val = (((uint16_t)i2c_reg_read(BNO055_I2C_ADDRESS, BNO055_REG_ADDR_GYR_DATA_Z_MSB)) << 8) | i2c_reg_read(BNO055_I2C_ADDRESS, BNO055_REG_ADDR_GYR_DATA_Z_LSB);
-
-  // convert to g
-  // coversion at +/- 2000 degrees/second is 16.4 LSB/g
-  bno055_measurement_t measurement = {0};
-  measurement.x_axis = ((float)x_val) / 16.4;
-  measurement.y_axis = ((float)y_val) / 16.4;
-  measurement.z_axis = ((float)z_val) / 16.4;
-  return measurement;
-}
-
-// mpu9250_measurement_t mpu9250_read_magnetometer() {
-
-//   // read data
-//   // must read 8 bytes starting at the first status register
-//   uint8_t reg_addr = AK8963_ST1;
-//   uint8_t rx_buf[8] = {0};
-//   nrf_twi_mngr_transfer_t const read_transfer[] = {
-//     NRF_TWI_MNGR_WRITE(MAG_ADDRESS, &reg_addr, 1, NRF_TWI_MNGR_NO_STOP),
-//     NRF_TWI_MNGR_READ(MAG_ADDRESS, rx_buf, 8, 0),
-//   };
-//   ret_code_t error_code = nrf_twi_mngr_perform(i2c_manager, NULL, read_transfer, 2, NULL);
-//   APP_ERROR_CHECK(error_code);
-
-//   // determine values
-//   int16_t x_val = (((uint16_t)rx_buf[2]) << 8) | rx_buf[1];
-//   int16_t y_val = (((uint16_t)rx_buf[4]) << 8) | rx_buf[3];
-//   int16_t z_val = (((uint16_t)rx_buf[6]) << 8) | rx_buf[5];
-
-//   // convert to g
-//   // coversion is 0.6 uT/LSB
-//   mpu9250_measurement_t measurement = {0};
-//   measurement.x_axis = ((float)x_val) * 0.6;
-//   measurement.y_axis = ((float)y_val) * 0.6;
-//   measurement.z_axis = ((float)z_val) * 0.6;
-
-//   return measurement;
-// }
-
-ret_code_t bno055_start_gyro_integration() {
-  if (nrfx_timer_is_enabled(&gyro_timer)) {
-    return NRF_ERROR_INVALID_STATE;
-  }
-
-  // zero the angle
-  integrated_angle.z_axis = 0;
-  integrated_angle.y_axis = 0;
-  integrated_angle.x_axis = 0;
-
-  nrfx_timer_clear(&gyro_timer);
-  nrfx_timer_enable(&gyro_timer);
-  prev_timer_val = 0;
-
-  return NRF_SUCCESS;
-}
-
-void bno055_stop_gyro_integration() {
-  nrfx_timer_disable(&gyro_timer);
-}
-
-bno055_measurement_t bno055_read_gyro_integration() {
-  uint32_t curr_timer_val = nrfx_timer_capture(&gyro_timer, NRF_TIMER_CC_CHANNEL0);
-  float time_diff = ((float)(curr_timer_val - prev_timer_val))/1000000.0;
-  //printf("curr %lu prev %lu diff %f\n", curr_timer_val, prev_timer_val, time_diff);
-  prev_timer_val = curr_timer_val;
-  bno055_measurement_t measure = bno055_read_gyro();
-  if (measure.z_axis > 0.5 || measure.z_axis < -0.5) {
-    integrated_angle.z_axis += measure.z_axis*time_diff;
-  }
-  if (measure.x_axis > 0.5 || measure.x_axis < -0.5) {
-    integrated_angle.x_axis += measure.x_axis*time_diff;
-  }
-  if (measure.y_axis > 0.5 || measure.y_axis < -0.5) {
-    integrated_angle.y_axis += measure.y_axis*time_diff;
-  }
-  return integrated_angle;
+  mpu9250_read_reg(MPU9250_ACCEL_XOUT_H, read, 8);
+  printf("ACCEL: %x\n", read[0]);
 }
 
