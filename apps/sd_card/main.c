@@ -72,32 +72,32 @@ int main(void) {
   // APP_ERROR_CHECK(error_code);
 
   
-  // // initializing printing to sd card
-  // printf("Started SD card demo app...\n");
+  // initializing printing to sd card
+  printf("Started SD card demo app...\n");
 
-  // // Enable SoftDevice (used to get RTC running)
-  // nrf_sdh_enable_request();  
+  // Enable SoftDevice (used to get RTC running)
+  nrf_sdh_enable_request();  
 
-  // // Configure GPIOs
-  // nrf_gpio_cfg_output(BUCKLER_SD_ENABLE);
-  // nrf_gpio_cfg_output(BUCKLER_SD_CS);
-  // nrf_gpio_cfg_output(BUCKLER_SD_MOSI);
-  // nrf_gpio_cfg_output(BUCKLER_SD_SCLK);
-  // nrf_gpio_cfg_input(BUCKLER_SD_MISO, NRF_GPIO_PIN_NOPULL);
+  // Configure GPIOs
+  nrf_gpio_cfg_output(BUCKLER_SD_ENABLE);
+  nrf_gpio_cfg_output(BUCKLER_SD_CS);
+  nrf_gpio_cfg_output(BUCKLER_SD_MOSI);
+  nrf_gpio_cfg_output(BUCKLER_SD_SCLK);
+  nrf_gpio_cfg_input(BUCKLER_SD_MISO, NRF_GPIO_PIN_NOPULL);
 
-  // nrf_gpio_pin_set(BUCKLER_SD_ENABLE);
-  // nrf_gpio_pin_set(BUCKLER_SD_CS);
+  nrf_gpio_pin_set(BUCKLER_SD_ENABLE);
+  nrf_gpio_pin_set(BUCKLER_SD_CS);
 
-  // Initialize SD card
-  // const char filename[] = "eval.txt";
-  // const char permissions[] = "a"; // w = write, a = append
+  //Initialize SD card
+  const char filename[] = "slowww.txt";
+  const char permissions[] = "a"; // w = write, a = append
 
-  // // Start file
-  // simple_logger_init(filename, permissions);
+  // Start file
+  simple_logger_init(filename, permissions);
 
-  // // If no header, add it
-  // simple_logger_log_header("HEADER for file \'%s\', written on %s \n", filename, "DATE");
-  // printf("Wrote header to SD card\n");
+  // If no header, add it
+  //simple_logger_log_header("HEADER for file \'%s\', written on %s \n", filename, "DATE");
+  printf("Wrote header to SD card\n");
 
   // configure leds
   // manually-controlled (simple) output, initially set
@@ -171,16 +171,16 @@ int main(void) {
     }
 
     // print results
-    printf("                      X-Axis\t    Y-Axis\t    Z-Axis\n");
-    printf("                  ----------\t----------\t----------\n");
-    printf("I2C IMU Acc (g): %10.3f\t%10.3f\t%10.3f\n", acc_measurement.x_axis, acc_measurement.y_axis, acc_measurement.z_axis);
-    printf("I2C IMU Gyro (g):  %10.3f\t%10.3f\t%10.3f\n", gyr_measurement.x_axis, gyr_measurement.y_axis, gyr_measurement.z_axis);
-    printf("Angle  (degrees): %10.3f\t%10.3f\t%10.3f\n", x_rot, y_rot, z_rot);
-    printf("\n");
+    // printf("                      X-Axis\t    Y-Axis\t    Z-Axis\n");
+    // printf("                  ----------\t----------\t----------\n");
+    // printf("I2C IMU Acc (g): %10.3f\t%10.3f\t%10.3f\n", acc_measurement.x_axis, acc_measurement.y_axis, acc_measurement.z_axis);
+    // printf("I2C IMU Gyro (g):  %10.3f\t%10.3f\t%10.3f\n", gyr_measurement.x_axis, gyr_measurement.y_axis, gyr_measurement.z_axis);
+    // printf("Angle  (degrees): %10.3f\t%10.3f\t%10.3f\n", x_rot, y_rot, z_rot);
+    // printf("\n");
 
     // simple_logger_log("Acc,%f,%f,%f\n",acc_measurement.x_axis, acc_measurement.y_axis, acc_measurement.z_axis);
     // simple_logger_log("Gyro,%f,%f,%f\n",gyr_measurement.x_axis, gyr_measurement.y_axis, gyr_measurement.z_axis);
-    // simple_logger_log("Angle,%f,%f,%f\n",x_rot, y_rot, z_rot);
+    simple_logger_log("Angle,%f,%f,%f\n",x_rot, y_rot, z_rot);
 
     if (loop_index <= 5) {
       initial_z = z_rot;
@@ -233,28 +233,63 @@ int main(void) {
   
     prev_z_direction = 0;
     if (initial_z != 100.0 && prev_z_direction == 100) {
-      if (z_rot - initial_z < 0) {
+      if (z_rot - prev_z < 0) {
         prev_z_direction = 1;
-      } else if (z_rot - initial_z > 0) {
+      } else if (z_rot - prev_z > 0) {
         prev_z_direction = 2;
       }
     } 
 
     z_direction = 0;
-    if (initial_z != 100.0) {
-      if (z_rot - initial_z < 0) {
+    if (prev_z != 100.0) {
+      if (z_rot - prev_z < 0) {
         z_direction = 1;
-      } else if (z_rot - initial_z > 0) {
+        if (z_rot - prev_z < -10) {
+          output = 7.658;
+        } else {
+          output = 7.585;
+        }
+      } else if (z_rot - prev_z > 0) {
         z_direction = 2;
+        if (z_rot - prev_z > 10) {
+          output = 7.432;
+        } else {
+          output = 7.495;
+        }
       }
     }
 
+    // z_direction = 0;
+    // if (initial_z != 100.0) {
+    //   printf("z_rotation: %f\n", z_rot);
+    //   printf("prev_z: %f\n", prev_z);
+    //   printf("diff: %f\n", z_rot-prev_z);
+    //   if (z_rot - prev_z < -20.0) { //cw
+    //     output = 7.8;
+    //   } else if (z_rot - prev_z > 20.0) { //ccw
+    //     output = 7.4;
+    //   } else if (z_rot - prev_z < 0) { //cw
+    //     input = prev_z - z_rot;
+    //     if (input < 10) {
+    //       output = 7.66;
+    //     } else {
+    //       output = 7.8;
+    //     }
+    //     // z_direction = 1;
+    //   } else if (z_rot - prev_z > 0) { //ccw
+    //     input = z_rot - prev_z;
+    //     if (input < 10) {
+    //       output = 7.55;
+    //     } else {
+    //       output = 7.5;
+    //     }
+    //     // z_direction = 2;
+    //   } 
+    // }
+
 //change if statement to say if (output!=0.0) when using output value
-    if (z_direction == 1) {
-      while (app_pwm_channel_duty_set(&PWM2, 0, 7.681) == NRF_ERROR_BUSY);
-      nrf_delay_ms(1);
-    } else if (z_direction == 2) {
-      while (app_pwm_channel_duty_set(&PWM2, 0, 7.57) == NRF_ERROR_BUSY);
+    if (z_direction != 0) {
+      while (app_pwm_channel_duty_set(&PWM2, 0, output) == NRF_ERROR_BUSY);
       nrf_delay_ms(1);
     } else {
       while (app_pwm_channel_duty_set(&PWM2, 0, 0) == NRF_ERROR_BUSY);
@@ -271,25 +306,25 @@ int main(void) {
     //   }
     // }
 
-    x_direction = 0;
-    if (initial_x != 100.0) {
-      if (x_rot - initial_x < 0) {
-        x_direction = 1;
-      } else if (x_rot - initial_x > 0) {
-        x_direction = 2;
-      }
-    }
+    // x_direction = 0;
+    // if (initial_x != 100.0) {
+    //   if (x_rot - initial_x < 0) {
+    //     x_direction = 1;
+    //   } else if (x_rot - initial_x > 0) {
+    //     x_direction = 2;
+    //   }
+    // }
 
-    if (x_direction == 1) {
-      while (app_pwm_channel_duty_set(&PWM2, 1, 7.8) == NRF_ERROR_BUSY);
-      nrf_delay_ms(1);
-    } else if (x_direction == 2) {
-      while (app_pwm_channel_duty_set(&PWM2, 1, 7.5) == NRF_ERROR_BUSY);
-      nrf_delay_ms(1);
-    } else {
-      while (app_pwm_channel_duty_set(&PWM2, 1, 0) == NRF_ERROR_BUSY);
-      nrf_delay_ms(1);
-    }
+    // if (x_direction == 1) {
+    //   while (app_pwm_channel_duty_set(&PWM2, 1, 7.655) == NRF_ERROR_BUSY);
+    //   nrf_delay_ms(1);
+    // } else if (x_direction == 2) {
+    //   while (app_pwm_channel_duty_set(&PWM2, 1, 7.598) == NRF_ERROR_BUSY);
+    //   nrf_delay_ms(1);
+    // } else {
+    //   while (app_pwm_channel_duty_set(&PWM2, 1, 0) == NRF_ERROR_BUSY);
+    //   nrf_delay_ms(1);
+    // }
 
     // while (app_pwm_channel_duty_set(&PWM2, 1, 6.5) == NRF_ERROR_BUSY);
     // nrf_delay_ms(100);
