@@ -180,7 +180,7 @@ int main(void) {
 
     // simple_logger_log("Acc,%f,%f,%f\n",acc_measurement.x_axis, acc_measurement.y_axis, acc_measurement.z_axis);
     // simple_logger_log("Gyro,%f,%f,%f\n",gyr_measurement.x_axis, gyr_measurement.y_axis, gyr_measurement.z_axis);
-    simple_logger_log("Angle,%f,%f,%f\n",x_rot, y_rot, z_rot);
+    // simple_logger_log("Angle,%f,%f,%f\n",x_rot, y_rot, z_rot);
 
     if (loop_index <= 5) {
       initial_z = z_rot;
@@ -228,7 +228,7 @@ int main(void) {
     //   output = 0.0;
     // }
 
-    // printf("Mapping: %10.3f\t\n", output);
+    printf("Mapping: %10.3f\t\n", z_rot - prev_z);
 
   
     prev_z_direction = 0;
@@ -244,20 +244,23 @@ int main(void) {
     if (prev_z != 100.0) {
       if (z_rot - prev_z < 0) {
         z_direction = 1;
-        if (z_rot - prev_z < -10) {
-          output = 7.658;
+        // CCw
+        if (z_rot - prev_z < -25) {
+          output = 8.2;
         } else {
-          output = 7.585;
+          output = 7.575;
         }
       } else if (z_rot - prev_z > 0) {
         z_direction = 2;
-        if (z_rot - prev_z > 10) {
-          output = 7.432;
+        // CW
+        if (z_rot - prev_z > 25) {
+          output = 7.25;
         } else {
-          output = 7.495;
+          output = 7.48;
         }
       }
     }
+
 
     // z_direction = 0;
     // if (initial_z != 100.0) {
